@@ -65,6 +65,7 @@ if ($LASTEXITCODE -ne 0) { throw 'EXE 编译失败。' }
 
 $config = '<?xml version="1.0" encoding="utf-8"?><configuration><startup><supportedRuntime version="v4.0" sku=".NETFramework,Version=v4.8"/></startup><runtime><AppContextSwitchOverrides value="Switch.System.Windows.DoNotScaleForDpiChanges=false"/></runtime></configuration>'
 [System.IO.File]::WriteAllText((Join-Path $appRoot '商品诊断.exe.config'),$config,[System.Text.UTF8Encoding]::new($false))
+if ($env:CI -ne 'true') {
 $shell = New-Object -ComObject WScript.Shell
 $shortcut = $shell.CreateShortcut((Join-Path $appRoot '商品诊断.lnk'))
 $shortcut.TargetPath = Join-Path $appRoot '商品诊断.exe'
@@ -73,4 +74,5 @@ $shortcut.WorkingDirectory = $appRoot
 $shortcut.IconLocation = (Join-Path $appRoot '商品诊断.exe')+',0'
 $shortcut.Description = '商品诊断 · 领星数据工作台'
 $shortcut.Save()
+}
 Write-Output ('Built: '+(Join-Path $appRoot '商品诊断.exe'))
