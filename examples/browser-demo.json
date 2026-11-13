@@ -1,0 +1,30 @@
+{
+  "method": "browser",
+  "input": {
+    "type": "父ASIN",
+    "value": "B0ASIN0001",
+    "country": "加拿大",
+    "match": "精确",
+    "from": "2025-01-01",
+    "to": "2025-01-30"
+  },
+  "query": {
+    "type": "父ASIN",
+    "value": "B0ASIN0001",
+    "tab": "父ASIN"
+  },
+  "dates": [
+    "2025-01-01",
+    "2025-01-30"
+  ],
+  "pagination": {
+    "total": 1,
+    "collected": 1,
+    "pages": 1,
+    "pageSize": 500
+  },
+  "fetchedAt": "2025-01-31T00:00:00Z",
+  "elapsedMs": 1000,
+  "status": "ok",
+  "synthetic": true
+}

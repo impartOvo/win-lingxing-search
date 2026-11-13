@@ -1,0 +1,16 @@
+.private/
+results/
+node_modules/
+runtime/
+dist/
+*.exe
+*.exe.config
+*.lnk
+*.zip
+*.log
+*.pdb
+desktop/app.ico
+__pycache__/
+.venv/
+map.suggested.txt
+guard-backup-*.bundle

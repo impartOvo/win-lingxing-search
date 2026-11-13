@@ -1,0 +1,14 @@
+{
+  "name": "win-lingxing-search",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "browser": "node browser.js",
+    "crawler": "node crawler.js"
+  },
+  "dependencies": {
+    "playwright": "^1.56.0"
+  },
+  "license": "MIT",
+  "description": "Windows desktop product report collector for Lingxing ERP"
+}
