@@ -1,0 +1,21 @@
+{
+  "appId": "io.github.impartovo.lingxing-search",
+  "productName": "Lingxing Search",
+  "asar": false,
+  "directories": { "output": "dist-mac", "buildResources": "mac/assets" },
+  "files": ["mac/main.cjs", "mac/preload.cjs", "mac/reports.cjs", "mac/ui/**", "browser.js", "crawler.js", "shared.js", "examples/*.json", "LICENSE", "THIRD_PARTY_NOTICES.md", "package.json", "node_modules/**"],
+  "extraResources": [
+    { "from": "node_modules/electron/dist/LICENSE", "to": "licenses/Electron-LICENSE.txt" },
+    { "from": "node_modules/electron/dist/LICENSES.chromium.html", "to": "licenses/LICENSES.chromium.html" },
+    { "from": "node_modules/playwright-core/ThirdPartyNotices.txt", "to": "licenses/Playwright-ThirdPartyNotices.txt" }
+  ],
+  "mac": {
+    "category": "public.app-category.business",
+    "minimumSystemVersion": "13.0",
+    "identity": "-",
+    "hardenedRuntime": false,
+    "notarize": false,
+    "icon": "mac/assets/icon.icns",
+    "target": ["dir"]
+  }
+}

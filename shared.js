@@ -5,8 +5,9 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 
 const ROOT = __dirname;
-const PRIVATE = path.join(ROOT, '.private');
-const RESULTS = path.join(ROOT, 'results');
+const DATA_ROOT = process.env.LINGXING_DATA_DIR ? path.resolve(process.env.LINGXING_DATA_DIR) : ROOT;
+const PRIVATE = path.join(DATA_ROOT, '.private');
+const RESULTS = path.join(DATA_ROOT, 'results');
 const PAGE_URL = 'https://xfg.lingxing.com/erp/productExpressionNew';
 const TYPES = new Set(['ASIN', '父ASIN', 'MSKU', 'SKU', 'SPU', 'FNSKU', '品名']);
 const PERIODS = new Set(['前7天', '前30天', '近7天', '近30天']);
@@ -104,4 +105,4 @@ function redactUrl(url) {
   return u.toString();
 }
 
-module.exports = { ROOT, PRIVATE, RESULTS, PAGE_URL, DATA_HOSTS, args, validate, mkdirs, saveJson, hash, businessHash, summary, redactUrl };
+module.exports = { ROOT, DATA_ROOT, PRIVATE, RESULTS, PAGE_URL, DATA_HOSTS, args, validate, mkdirs, saveJson, hash, businessHash, summary, redactUrl };

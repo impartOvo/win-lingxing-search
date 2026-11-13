@@ -1,14 +1,23 @@
 {
   "name": "win-lingxing-search",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
+  "main": "mac/main.cjs",
   "scripts": {
     "browser": "node browser.js",
-    "crawler": "node crawler.js"
+    "crawler": "node crawler.js",
+    "test": "node --test tests/mac-data.test.cjs",
+    "mac:dev": "electron .",
+    "mac:pack": "electron-builder --config electron-builder.mac.json"
   },
   "dependencies": {
     "playwright": "^1.56.0"
   },
   "license": "MIT",
-  "description": "Windows desktop product report collector for Lingxing ERP"
+  "description": "Desktop product report collector for Lingxing ERP on Windows and macOS",
+  "author": "impartOvo",
+  "devDependencies": {
+    "electron": "45.3.1",
+    "electron-builder": "26.18.0"
+  }
 }

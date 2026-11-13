@@ -1,0 +1,74 @@
+name: Build macOS
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-15
+            appdir: mac-arm64
+          - arch: x64
+            runner: macos-15-intel
+            appdir: mac
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm test
+      - run: node mac/smoke-chrome.cjs
+      - run: bash mac/make-icon.sh
+      - run: npm run mac:pack -- --${{ matrix.arch }} --dir
+      - name: Verify signed application and native IPC
+        env:
+          LINGXING_SMOKE_REPORT: ${{ runner.temp }}/app-smoke.json
+        run: |
+          APP="dist-mac/${{ matrix.appdir }}/Lingxing Search.app"
+          codesign --verify --deep --strict "$APP"
+          "$APP/Contents/MacOS/Lingxing Search" --smoke-test
+          cat "$LINGXING_SMOKE_REPORT"
+      - name: Package and test extracted application
+        run: |
+          APP="dist-mac/${{ matrix.appdir }}/Lingxing Search.app"
+          ZIP="dist-mac/lingxing-search-1.1.0-mac-${{ matrix.arch }}.zip"
+          ditto -c -k --sequesterRsrc --keepParent "$APP" "$ZIP"
+          ditto -x -k "$ZIP" "$RUNNER_TEMP/extracted"
+          APP="$RUNNER_TEMP/extracted/Lingxing Search.app"
+          codesign --verify --deep --strict "$APP"
+          LINGXING_SMOKE_REPORT="$RUNNER_TEMP/extracted-smoke.json" "$APP/Contents/MacOS/Lingxing Search" --smoke-test
+          cat "$RUNNER_TEMP/extracted-smoke.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac-${{ matrix.arch }}
+          path: dist-mac/*.zip
+          if-no-files-found: error
+          retention-days: 7
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: mac-artifacts
+          merge-multiple: true
+      - name: Publish macOS release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd mac-artifacts
+          sha256sum *.zip > SHA256SUMS-mac.txt
+          gh release create v1.1.0 *.zip SHA256SUMS-mac.txt --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "v1.1.0 · macOS" --notes-file "$GITHUB_WORKSPACE/docs/mac-release-notes.md"

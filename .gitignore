@@ -3,6 +3,10 @@ results/
 node_modules/
 runtime/
 dist/
+dist-mac/
+mac/assets/*.icns
+mac/assets/*.png
+mac/assets/*.iconset/
 *.exe
 *.exe.config
 *.lnk
