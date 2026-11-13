@@ -92,12 +92,17 @@ function createWindow() {
   window = new BrowserWindow({
     width: 1280, height: 880, minWidth: 980, minHeight: 680, backgroundColor: '#111620',
     title: '商品诊断', titleBarStyle: 'hiddenInset', show: false,
-    webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true }
+    webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false }
   });
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', event => event.preventDefault());
   window.on('close', event => { if (child) { event.preventDefault(); status('采集正在进行，请等待完成后关闭'); } });
-  window.once('ready-to-show', () => { if (!smoke) window.show(); });
+  window.once('ready-to-show', () => window.show());
+  if (smoke) {
+    window.webContents.on('preload-error', (_, file, error) => console.error('Preload:', error.message));
+    window.webContents.on('console-message', (_, details) => { if (details.level === 'error') console.error('Renderer:', details.message); });
+    window.webContents.on('render-process-gone', (_, details) => console.error('Renderer process:', details.reason));
+  }
   window.loadFile(path.join(__dirname, 'ui', 'index.html'));
   window.webContents.once('did-finish-load', () => { if (smoke) runSmoke().catch(finishSmoke); });
 }
@@ -107,8 +112,9 @@ async function runSmoke() {
   fs.mkdirSync(resultRoot(), { recursive: true });
   for (const name of ['browser-demo.json', 'browser-data-demo.json']) fs.copyFileSync(path.join(source, name), path.join(resultRoot(), name));
   await runCollector(null, true);
+  console.log('Smoke: bundled collection module loaded');
   const deadline = Date.now() + 15000;
-  while (!(await window.webContents.executeJavaScript('Boolean(window.__uiReady)'))) {
+  while (!(await Promise.race([window.webContents.executeJavaScript('Boolean(window.__uiReady)'), new Promise((_, reject) => setTimeout(() => reject(new Error('Renderer evaluation timed out')), 15000))]))) {
     if (Date.now() > deadline) throw new Error('界面初始化超时');
     await new Promise(resolve => setTimeout(resolve, 50));
   }
@@ -116,7 +122,11 @@ async function runSmoke() {
     document.querySelector('[data-page="history"]').click();
     await window.reloadHistory();
     document.querySelector('#history-list button').click();
-    await new Promise(r => setTimeout(r, 200));
+    const until = Date.now() + 5000;
+    while (document.querySelector('#sales').textContent !== '12') {
+      if (Date.now() > until) throw new Error('History result did not load');
+      await new Promise(r => setTimeout(r, 20));
+    }
     if (document.querySelector('#sales').textContent !== '12') throw new Error('销量显示错误');
     if (document.querySelector('#return-rate').textContent !== '8.33%') throw new Error('退货率显示错误');
     if (document.querySelector('#refund-rate').textContent !== '16.67%') throw new Error('退款率显示错误');

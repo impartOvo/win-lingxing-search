@@ -36,8 +36,11 @@ jobs:
         run: |
           APP="dist-mac/${{ matrix.appdir }}/Lingxing Search.app"
           codesign --verify --deep --strict "$APP"
+          set +e
           "$APP/Contents/MacOS/Lingxing Search" --smoke-test
+          RESULT=$?
           cat "$LINGXING_SMOKE_REPORT"
+          exit "$RESULT"
       - name: Package and test extracted application
         run: |
           APP="dist-mac/${{ matrix.appdir }}/Lingxing Search.app"
@@ -53,6 +56,15 @@ jobs:
           name: mac-${{ matrix.arch }}
           path: dist-mac/*.zip
           if-no-files-found: error
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: diagnostic-${{ matrix.arch }}
+          path: |
+            ${{ runner.temp }}/app-smoke.json
+            ${{ runner.temp }}/extracted-smoke.json
+          if-no-files-found: ignore
           retention-days: 7
   publish:
     needs: build

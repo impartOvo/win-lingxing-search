@@ -7,8 +7,9 @@
     "browser": "node browser.js",
     "crawler": "node crawler.js",
     "test": "node --test tests/mac-data.test.cjs",
-    "mac:dev": "electron .",
-    "mac:pack": "electron-builder --config electron-builder.mac.json"
+    "mac:runtime": "install-electron",
+    "mac:dev": "install-electron && electron .",
+    "mac:pack": "install-electron && electron-builder --config electron-builder.mac.json --publish never"
   },
   "dependencies": {
     "playwright": "^1.56.0"
