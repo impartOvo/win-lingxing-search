@@ -2,9 +2,20 @@
 
 领星 ERP 商品数据采集与查看工具。Windows 使用原生 C# / WPF，macOS 使用 Electron；两端均采用深灰背景、蓝色强调色和侧栏卡片布局。双击桌面应用即可运行。
 
+## 分支说明
+
+| 分支 | 用途 |
+|---|---|
+| [`main`](https://github.com/impartOvo/win-lingxing-search/tree/main) | 项目主线、公共采集逻辑与使用文档 |
+| [`mac`](https://github.com/impartOvo/win-lingxing-search/tree/mac) | 保存完整 macOS 适配，包含深色界面、采集服务、Apple 芯片和 Intel 打包流程 |
+
+`mac` 分支基于已经通过双架构构建和启动检查的 v1.1.0 Mac 版本建立。Mac 开发与后续适配可从该分支开始；普通使用者直接下载对应安装包即可。
+
 ## 下载运行
 
-从本仓库 Releases 下载 Windows x64 ZIP，解压到有写入权限的目录，双击 `商品诊断.exe`。
+### Windows
+
+从 [Windows v1.0.0 Release](https://github.com/impartOvo/win-lingxing-search/releases/tag/v1.0.0) 下载 Windows x64 ZIP，解压到有写入权限的目录，双击 `商品诊断.exe`。
 
 - 系统：Windows x64，.NET Framework 4.8 / 4.8.1，已安装 Google Chrome。
 - 便携包包含 Node 运行时与 Playwright 依赖，保留完整目录。
@@ -17,6 +28,11 @@
 ### macOS
 
 从 [v1.1.0 Release](https://github.com/impartOvo/win-lingxing-search/releases/tag/v1.1.0) 下载 Mac ZIP：Apple 芯片选择 `mac-arm64.zip`，Intel 选择 `mac-x64.zip`。解压后将 `Lingxing Search.app` 拖入「应用程序」并打开。支持 macOS 13 Ventura 或以上，需要 Google Chrome；无需另外安装 Node、.NET 或 Python。
+
+| Mac 类型 | 下载 |
+|---|---|
+| Apple 芯片（M 系列，ARM64） | [下载 Apple 芯片版](https://github.com/impartOvo/win-lingxing-search/releases/download/v1.1.0/lingxing-search-1.1.0-mac-arm64.zip) |
+| Intel（x64） | [下载 Intel 版](https://github.com/impartOvo/win-lingxing-search/releases/download/v1.1.0/lingxing-search-1.1.0-mac-x64.zip) |
 
 Mac 版内置运行时，以独立的 Node utility process 运行相同采集脚本。登录态与结果位于 `~/Library/Application Support/Lingxing Search/`，可通过应用内「打开数据目录」查看；结果在其 `results/` 子目录。迁移已有报表时，将同一时间戳的两个 JSON 放入该 results 目录。不同电脑首次使用需要重新登录，不复制浏览器登录目录。
 
@@ -37,9 +53,11 @@ PowerShell 仅用于开发构建。构建后运行 `商品诊断.exe`，界面�
 
 开发构建自动复制本机 Node 到 `runtime/`。自行分发运行时与依赖时保留各自许可证；官方便携包包含对应许可证。
 
-Mac 开发构建在 macOS 上执行：
+Mac 开发构建在 macOS 上执行，需要 Node.js 24 和 Xcode 命令行工具（生成应用图标时使用 Swift）：
 
 ```sh
+git clone --branch mac https://github.com/impartOvo/win-lingxing-search.git
+cd win-lingxing-search
 npm ci
 npm test
 bash mac/make-icon.sh
