@@ -15,7 +15,7 @@
 
 ### Windows
 
-从 [v1.2.1 Windows Release](https://github.com/impartOvo/win-lingxing-search/releases/tag/v1.2.1) 下载 Windows x64 ZIP，解压到有写入权限的目录，双击 `商品诊断.exe`。
+从 [v1.2.2 Windows Release](https://github.com/impartOvo/win-lingxing-search/releases/tag/v1.2.2) 下载 Windows x64 ZIP，解压到有写入权限的目录，双击 `商品诊断.exe`。
 
 - 系统：Windows x64，.NET Framework 4.8 / 4.8.1，已安装 Google Chrome。
 - 便携包包含 Node 运行时与 Playwright 依赖，保留完整目录。
@@ -27,12 +27,12 @@
 
 ### macOS
 
-从 [v1.2.1 Release](https://github.com/impartOvo/win-lingxing-search/releases/tag/v1.2.1) 下载 Mac ZIP：Apple 芯片选择 `mac-arm64.zip`，Intel 选择 `mac-x64.zip`。解压后将 `Lingxing Search.app` 拖入「应用程序」并打开。支持 macOS 13 Ventura 或以上，需要 Google Chrome；无需另外安装 Node、.NET 或 Python。
+从 [v1.2.2 Release](https://github.com/impartOvo/win-lingxing-search/releases/tag/v1.2.2) 下载 Mac ZIP：Apple 芯片选择 `mac-arm64.zip`，Intel 选择 `mac-x64.zip`。解压后将 `Lingxing Search.app` 拖入「应用程序」并打开。支持 macOS 13 Ventura 或以上，需要 Google Chrome；无需另外安装 Node、.NET 或 Python。
 
 | Mac 类型 | 下载 |
 |---|---|
-| Apple 芯片（M 系列，ARM64） | [下载 Apple 芯片版](https://github.com/impartOvo/win-lingxing-search/releases/download/v1.2.1/lingxing-search-1.2.1-mac-arm64.zip) |
-| Intel（x64） | [下载 Intel 版](https://github.com/impartOvo/win-lingxing-search/releases/download/v1.2.1/lingxing-search-1.2.1-mac-x64.zip) |
+| Apple 芯片（M 系列，ARM64） | [下载 Apple 芯片版](https://github.com/impartOvo/win-lingxing-search/releases/download/v1.2.2/lingxing-search-1.2.2-mac-arm64.zip) |
+| Intel（x64） | [下载 Intel 版](https://github.com/impartOvo/win-lingxing-search/releases/download/v1.2.2/lingxing-search-1.2.2-mac-x64.zip) |
 
 Mac 版内置运行时，以独立的 Node utility process 运行相同采集脚本。登录态与结果位于 `~/Library/Application Support/Lingxing Search/`，可通过应用内「打开数据目录」查看；结果在其 `results/` 子目录。迁移已有报表时，将同一时间戳的两个 JSON 放入该 results 目录。不同电脑首次使用需要重新登录，不复制浏览器登录目录。
 

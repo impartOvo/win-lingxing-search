@@ -1,7 +1,7 @@
 {
   "name": "win-lingxing-search",
   "private": true,
-  "version": "1.2.1",
+  "version": "1.2.2",
   "main": "mac/main.cjs",
   "scripts": {
     "browser": "node browser.js",
