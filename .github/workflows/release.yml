@@ -1,0 +1,40 @@
+name: Release desktop apps
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: node scripts/release-version.cjs
+  windows:
+    needs: version
+    uses: ./.github/workflows/build-windows.yml
+  mac:
+    needs: version
+    uses: ./.github/workflows/build-macos.yml
+  publish:
+    needs: [windows, mac]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: '*-package'
+          path: release-assets
+          merge-multiple: true
+      - name: Publish verified packages
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(node scripts/release-version.cjs)
+          cd release-assets
+          sha256sum --check SHA256SUMS-windows.txt
+          sha256sum --check SHA256SUMS-mac-arm64.txt
+          sha256sum --check SHA256SUMS-mac-x64.txt
+          gh release create "v$VERSION" *.zip SHA256SUMS-*.txt --verify-tag --repo "$GITHUB_REPOSITORY" --title "v$VERSION · Windows & macOS" --notes-file "$GITHUB_WORKSPACE/docs/release-notes.md"

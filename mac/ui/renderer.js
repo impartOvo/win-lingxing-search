@@ -94,6 +94,7 @@ api.onResult(value => { renderResult(value); reloadHistory().catch(e => error(e.
 dates(30); show('collect');
 guarded(async () => {
   const state = await reloadHistory(); status({ running: state.running, text: state.status }); $('log').textContent = state.logs.join('\n'); $('open-data').title = state.dataRoot;
+  $('countries').replaceChildren(...state.countries.map(country => { const option = document.createElement('option'); option.value = country; return option; }));
   if (state.history.length) renderResult(await api.readResult(state.history[0].name));
   window.__uiReady = true;
 })();

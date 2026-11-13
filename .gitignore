@@ -14,6 +14,7 @@ mac/assets/*.iconset/
 *.log
 *.pdb
 desktop/app.ico
+desktop/Version.g.cs
 __pycache__/
 .venv/
 map.suggested.txt

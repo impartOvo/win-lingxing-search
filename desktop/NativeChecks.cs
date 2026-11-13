@@ -25,6 +25,8 @@ namespace ProductDiagnosis
             Require(expected.SequenceEqual(actual), "传给 Node 的中文或特殊字符参数不正确。");
             string help = RunNode(root, new[] { Path.Combine(root, "browser.js"), "--help" });
             Require(help.IndexOf("fnsku", StringComparison.OrdinalIgnoreCase) >= 0 && help.Contains("--country"), "采集模块或 Playwright 依赖无法加载。");
+            string countries = RunNode(root, new[] { "-e", "process.stdout.write(JSON.stringify(require('./shared').COUNTRIES))" });
+            Require(NativeWindow.CountryOptions().SequenceEqual(ReportData.Items(ReportData.Serializer().DeserializeObject(countries)).Select(ReportData.Text)), "两端国家候选不一致。");
 
             string sample = Path.Combine(root, "examples", "browser-demo.json");
             if (File.Exists(sample))

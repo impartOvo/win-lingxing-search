@@ -12,7 +12,7 @@ if "%ITEM%"=="" (
   pause
   exit /b 1
 )
-node browser.js --type parent_asin --value "%ITEM%" --period prev30
+node browser.js --type parent_asin --value "%ITEM%" --period prev30 --save-template
 if errorlevel 1 (
   echo.
   echo Browser collection did not finish. The crawler needs its request template.

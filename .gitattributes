@@ -1,5 +1,9 @@
 * text=auto
 *.cs text eol=lf
+*.xaml text eol=lf
+*.cjs text eol=lf
+*.sh text eol=lf
+*.yml text eol=lf
 *.js text eol=lf
 *.md text eol=lf
 *.json text eol=lf

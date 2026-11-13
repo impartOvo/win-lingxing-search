@@ -1,6 +1,7 @@
 name: Build macOS
 on:
   workflow_dispatch:
+  workflow_call:
 permissions:
   contents: read
 jobs:
@@ -23,8 +24,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '24.21.0'
           cache: npm
+      - name: Validate release version
+        run: echo "APP_VERSION=$(node scripts/release-version.cjs)" >> "$GITHUB_ENV"
       - run: npm ci --no-audit --no-fund
       - run: npm test
       - run: node mac/smoke-chrome.cjs
@@ -41,20 +44,32 @@ jobs:
           RESULT=$?
           cat "$LINGXING_SMOKE_REPORT"
           exit "$RESULT"
+      - name: Verify actual collection entry rejects invalid input with a report
+        run: |
+          APP="dist-mac/${{ matrix.appdir }}/Lingxing Search.app"
+          REPORT="$RUNNER_TEMP/invalid-collection.json"
+          if "$APP/Contents/MacOS/Lingxing Search" --collect-once --value "" --test-report "$REPORT"; then
+            echo "Invalid query unexpectedly succeeded"
+            exit 1
+          fi
+          node -e "const r=require(process.argv[1]); if(r.status!=='error'||r.mode!=='collection') process.exit(1)" "$REPORT"
       - name: Package and test extracted application
         run: |
           APP="dist-mac/${{ matrix.appdir }}/Lingxing Search.app"
-          ZIP="dist-mac/lingxing-search-1.1.0-mac-${{ matrix.arch }}.zip"
+          ZIP="dist-mac/lingxing-search-${APP_VERSION}-mac-${{ matrix.arch }}.zip"
           ditto -c -k --sequesterRsrc --keepParent "$APP" "$ZIP"
           ditto -x -k "$ZIP" "$RUNNER_TEMP/extracted"
           APP="$RUNNER_TEMP/extracted/Lingxing Search.app"
           codesign --verify --deep --strict "$APP"
           LINGXING_SMOKE_REPORT="$RUNNER_TEMP/extracted-smoke.json" "$APP/Contents/MacOS/Lingxing Search" --smoke-test
           cat "$RUNNER_TEMP/extracted-smoke.json"
+          (cd dist-mac && shasum -a 256 "$(basename "$ZIP")" > "SHA256SUMS-mac-${{ matrix.arch }}.txt")
       - uses: actions/upload-artifact@v4
         with:
-          name: mac-${{ matrix.arch }}
-          path: dist-mac/*.zip
+          name: mac-${{ matrix.arch }}-package
+          path: |
+            dist-mac/*.zip
+            dist-mac/SHA256SUMS-mac-*.txt
           if-no-files-found: error
           retention-days: 7
       - uses: actions/upload-artifact@v4
@@ -64,23 +79,6 @@ jobs:
           path: |
             ${{ runner.temp }}/app-smoke.json
             ${{ runner.temp }}/extracted-smoke.json
+            ${{ runner.temp }}/invalid-collection.json
           if-no-files-found: ignore
           retention-days: 7
-  publish:
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          path: mac-artifacts
-          merge-multiple: true
-      - name: Publish macOS release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          cd mac-artifacts
-          sha256sum *.zip > SHA256SUMS-mac.txt
-          gh release create v1.1.0 *.zip SHA256SUMS-mac.txt --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "v1.1.0 · macOS" --notes-file "$GITHUB_WORKSPACE/docs/mac-release-notes.md"

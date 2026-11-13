@@ -16,6 +16,7 @@ const TYPE_ALIAS = { asin: 'ASIN', parent_asin: '父ASIN', msku: 'MSKU', sku: 'S
 const PERIOD_ALIAS = { prev7: '前7天', prev30: '前30天', recent7: '近7天', recent30: '近30天' };
 const MATCH_ALIAS = { fuzzy: '模糊', exact: '精确' };
 const COUNTRY_ALIAS = { DE: '德国', CA: '加拿大', UK: '英国', GB: '英国', FR: '法国', ES: '西班牙', IT: '意大利', NL: '荷兰', BE: '比利时', PL: '波兰', SE: '瑞典', IE: '爱尔兰', TR: '土耳其', MX: '墨西哥', BR: '巴西' };
+const COUNTRIES = require('./countries.json');
 const DATA_HOSTS = new Set(['xfg.lingxing.com', 'gw.lingxingerp.com']);
 
 function args(argv) {
@@ -24,6 +25,7 @@ function args(argv) {
     const key = argv[i];
     if (!key.startsWith('--')) throw new Error(`无法识别参数：${key}`);
     if (key === '--help') { out.help = true; continue; }
+    if (['--save-template', '--diagnostics'].includes(key) && (!argv[i + 1] || argv[i + 1].startsWith('--'))) { out[key.slice(2)] = true; continue; }
     const value = argv[++i];
     if (!value || value.startsWith('--')) throw new Error(`参数 ${key} 缺少值`);
     out[key.slice(2)] = value;
@@ -32,6 +34,12 @@ function args(argv) {
 }
 
 function validate(options) {
+  for (const key of ['save-template', 'diagnostics']) {
+    if (options[key] === undefined) options[key] = false;
+    else if ([true, 'true', '1'].includes(options[key])) options[key] = true;
+    else if ([false, 'false', '0'].includes(options[key])) options[key] = false;
+    else throw new Error(`--${key} 仅支持 true/false`);
+  }
   if (!options.value?.trim()) throw new Error('请提供 --value 商品标识或品名');
   options.value = options.value.trim();
   options.type ||= 'MSKU';
@@ -67,7 +75,22 @@ function mkdirs() {
 }
 
 function saveJson(file, data) {
-  fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf8');
+  fs.writeFileSync(file, JSON.stringify(data, null, 2), { encoding: 'utf8', mode: 0o600 });
+  if (process.platform !== 'win32') fs.chmodSync(file, 0o600);
+}
+
+// Replay credentials are still private. Cookies and unrelated browser headers are excluded.
+function replayHeaders(headers) {
+  const allowed = new Set(['accept', 'content-type', 'origin', 'referer', 'auth-token',
+    'ak-client-type', 'ak-origin', 'x-ak-company-id', 'x-ak-env-key', 'x-ak-language',
+    'x-ak-platform', 'x-ak-request-source', 'x-ak-uid', 'x-ak-version', 'x-ak-zid']);
+  return Object.fromEntries(Object.entries(headers).filter(([key]) => allowed.has(key.toLowerCase())));
+}
+
+function captureSummary(capture) {
+  const url = new URL(capture.request.url);
+  return { url: url.origin + url.pathname, method: capture.request.method,
+    status: capture.response.status, summary: summary(capture.response.body), capturedAt: capture.capturedAt };
 }
 
 function hash(data) {
@@ -105,4 +128,4 @@ function redactUrl(url) {
   return u.toString();
 }
 
-module.exports = { ROOT, DATA_ROOT, PRIVATE, RESULTS, PAGE_URL, DATA_HOSTS, args, validate, mkdirs, saveJson, hash, businessHash, summary, redactUrl };
+module.exports = { ROOT, DATA_ROOT, PRIVATE, RESULTS, PAGE_URL, DATA_HOSTS, COUNTRIES, args, validate, mkdirs, saveJson, replayHeaders, captureSummary, hash, businessHash, summary, redactUrl };

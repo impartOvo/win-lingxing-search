@@ -15,7 +15,7 @@
 
 ### Windows
 
-从 [Windows v1.0.0 Release](https://github.com/impartOvo/win-lingxing-search/releases/tag/v1.0.0) 下载 Windows x64 ZIP，解压到有写入权限的目录，双击 `商品诊断.exe`。
+从 [v1.2.0 Windows Release](https://github.com/impartOvo/win-lingxing-search/releases/tag/v1.2.0) 下载 Windows x64 ZIP，解压到有写入权限的目录，双击 `商品诊断.exe`。
 
 - 系统：Windows x64，.NET Framework 4.8 / 4.8.1，已安装 Google Chrome。
 - 便携包包含 Node 运行时与 Playwright 依赖，保留完整目录。
@@ -27,12 +27,12 @@
 
 ### macOS
 
-从 [v1.1.0 Release](https://github.com/impartOvo/win-lingxing-search/releases/tag/v1.1.0) 下载 Mac ZIP：Apple 芯片选择 `mac-arm64.zip`，Intel 选择 `mac-x64.zip`。解压后将 `Lingxing Search.app` 拖入「应用程序」并打开。支持 macOS 13 Ventura 或以上，需要 Google Chrome；无需另外安装 Node、.NET 或 Python。
+从 [v1.2.0 Release](https://github.com/impartOvo/win-lingxing-search/releases/tag/v1.2.0) 下载 Mac ZIP：Apple 芯片选择 `mac-arm64.zip`，Intel 选择 `mac-x64.zip`。解压后将 `Lingxing Search.app` 拖入「应用程序」并打开。支持 macOS 13 Ventura 或以上，需要 Google Chrome；无需另外安装 Node、.NET 或 Python。
 
 | Mac 类型 | 下载 |
 |---|---|
-| Apple 芯片（M 系列，ARM64） | [下载 Apple 芯片版](https://github.com/impartOvo/win-lingxing-search/releases/download/v1.1.0/lingxing-search-1.1.0-mac-arm64.zip) |
-| Intel（x64） | [下载 Intel 版](https://github.com/impartOvo/win-lingxing-search/releases/download/v1.1.0/lingxing-search-1.1.0-mac-x64.zip) |
+| Apple 芯片（M 系列，ARM64） | [下载 Apple 芯片版](https://github.com/impartOvo/win-lingxing-search/releases/download/v1.2.0/lingxing-search-1.2.0-mac-arm64.zip) |
+| Intel（x64） | [下载 Intel 版](https://github.com/impartOvo/win-lingxing-search/releases/download/v1.2.0/lingxing-search-1.2.0-mac-x64.zip) |
 
 Mac 版内置运行时，以独立的 Node utility process 运行相同采集脚本。登录态与结果位于 `~/Library/Application Support/Lingxing Search/`，可通过应用内「打开数据目录」查看；结果在其 `results/` 子目录。迁移已有报表时，将同一时间戳的两个 JSON 放入该 results 目录。不同电脑首次使用需要重新登录，不复制浏览器登录目录。
 
@@ -66,23 +66,34 @@ npm run mac:pack -- --arm64 --dir
 # Intel 构建使用 --x64
 ```
 
-GitHub Actions 的 `Build macOS` 工作流分别在原生 ARM64 和 Intel 构建机上打包，并在通过 Chrome 连接、签名完整性、应用与 IPC、自检及 ZIP 解压后启动检查后发布。构建机没有领星账号，Mac 上的真实账号取数需要使用者首次登录后验证。
+GitHub Actions 的 `Build macOS` 工作流分别在原生 ARM64 和 Intel 构建机上打包，并在通过 Chrome 连接、签名完整性、应用与 IPC、自检及 ZIP 解压后启动检查后生成构建产物。普通提交只构建；推送与 package.json 一致的版本标签后，发布工作流等待 Windows 和两个 Mac 架构全部通过，再发布到同一 Release。构建机没有领星账号，Mac 上的真实账号取数需要使用者首次登录后验证。
 
 ## 命令行与对比实验
 
 ```powershell
-node browser.js --type parent_asin --value B0ASIN0001 --match exact --country 加拿大 --from 2025-01-01 --to 2025-01-30
+node browser.js --type parent_asin --value B0ASIN0001 --match exact --country 加拿大 --from 2025-01-01 --to 2025-01-30 --save-template
 node browser.js --type name --value "示例品名" --match fuzzy --country 德国 --period prev30
 node crawler.js
 ```
 
-示例标识为占位符，使用时替换为自己的商品。`crawler.js` 复用浏览器已观察到的只读请求模板，用于同条件取数对比。登录失效时先运行浏览器版。两个脚本均保存独立结果，直连版不自动进入桌面结果视图。
+示例标识为占位符，使用时替换为自己的商品。只有显式传入 `--save-template` 或使用「运行对比.cmd」才保存私有模板；普通界面采集不保存模板。`crawler.js` 复用浏览器已观察到的只读请求模板，用于同条件取数对比。登录失效时先运行浏览器版。两个脚本均保存独立结果，直连版不自动进入桌面结果视图。
+
+## Mac 实际采集回归
+
+关闭已运行的应用，再在 Mac 终端执行一次（将占位商品替换为实际商品）：
+
+```sh
+"/Applications/Lingxing Search.app/Contents/MacOS/Lingxing Search" --collect-once --type parent_asin --value B0ASIN0001 --country 加拿大 --from 2025-01-01 --to 2025-01-30 --test-report "$HOME/Desktop/lingxing-collection-test.json"
+```
+
+该入口使用正常应用的数据目录和同一采集服务；首次登录仍在专用 Chrome 完成。采集结束后自动退出，报告包含成功/失败、结果文件路径和记录数；退出码 0 表示成功。报告和业务结果只保存在本机，不上传 CI。可用 `--period prev30` 替代两个日期。GitHub 构建机的合成数据测试不能替代实际账号验证。
 
 ## 数据与迁移
 
 - `results/browser-时间.json`：查询条件、范围、采集状态、行数和耗时。
 - `results/browser-data-时间.json`：领星返回的实际指标。
-- `.private/`：登录状态、浏览器配置、请求模板与本地日志，仅在本机生成。
+- `.private/`：必要登录状态、浏览器配置与本地日志，仅在本机生成。默认不保存完整网络记录；`--diagnostics` 仅保存不含请求头、请求体及原始响应的摘要。启用爬虫模板时仍包含身份令牌，不能公开或随包迁移。
+- 升级后首次采集会清理旧的请求模板和完整网络记录，不影响已有报表及登录态。
 - 同一次采集有两个 JSON 文件，不表示有两个商品。父体行还可能包含多个款式与多个 MSKU。
 - 支持读 JSON 的 AI 可分析上传的结果；分析时同时提供查询记录和数据文件。
 - 迁移 Windows 电脑：复制完整应用目录，删除目标副本整个 `.private/`，首次采集重新登录。保留 `results/` 可保留历史；新电脑重新创建快捷方式。

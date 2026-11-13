@@ -3,7 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { chromium } = require('playwright');
-const { PRIVATE, RESULTS, PAGE_URL, DATA_HOSTS, args, validate, mkdirs, saveJson, businessHash, summary } = require('./shared');
+const { PRIVATE, RESULTS, PAGE_URL, DATA_HOSTS, args, validate, mkdirs, saveJson, replayHeaders, captureSummary, businessHash, summary } = require('./shared');
 
 async function choosePeriod(page, period) {
   await page.getByPlaceholder('开始日期').click();
@@ -207,6 +207,8 @@ async function capture(options) {
   mkdirs();
   const templatePath = path.join(PRIVATE, 'request-template.json');
   if (fs.existsSync(templatePath)) fs.unlinkSync(templatePath);
+  const diagnosticsPath = path.join(PRIVATE, 'last-captures.json');
+  if (fs.existsSync(diagnosticsPath)) fs.unlinkSync(diagnosticsPath);
   const start = performance.now();
   const profile = path.join(PRIVATE, 'chrome-profile');
   const sessionPath = path.join(PRIVATE, 'session-storage.json');
@@ -244,7 +246,7 @@ async function capture(options) {
         const responseText = JSON.stringify(body);
         if (!postData.includes(queryValue) && !url.includes(queryValue) && !responseText.includes(queryValue)) return;
         seen.push({
-          request: { url, method: request.method(), headers: await request.allHeaders(), postData },
+          request: { url, method: request.method(), ...(options['save-template'] ? { headers: replayHeaders(await request.allHeaders()) } : {}), postData },
           response: { status: response.status(), body },
           capturedAt: new Date().toISOString()
         });
@@ -270,6 +272,7 @@ async function capture(options) {
     await resetReport(page);
     await page.getByRole('tab', { name: tabType, exact: true }).click();
     await context.storageState({ path: authPath });
+    if (process.platform !== 'win32') fs.chmodSync(authPath, 0o600);
     const sessionStorageData = await page.evaluate(() => Object.fromEntries(Object.entries(sessionStorage)));
     saveJson(sessionPath, sessionStorageData);
     const country = await chooseCountry(page, options.country);
@@ -297,7 +300,7 @@ async function capture(options) {
     ).filter(row => row.some(Boolean)));
     const visibleText = await page.locator('body').innerText();
     const relevant = seen.filter(x => x.request.postData.includes(queryValue) || x.request.url.includes(queryValue) || JSON.stringify(x.response.body).includes(queryValue));
-    saveJson(path.join(PRIVATE, 'last-captures.json'), relevant);
+    if (options.diagnostics) saveJson(diagnosticsPath, relevant.map(captureSummary));
     const candidates = relevant.filter(x => {
       try { const body = JSON.parse(x.request.postData); return body.search_value === queryValue || (Array.isArray(body.search_value) && body.search_value.includes(queryValue)); }
       catch { return false; }
@@ -328,14 +331,14 @@ async function capture(options) {
     console.log('阶段：保存结果');
     saveJson(resultPath, result);
     if (selected) {
-      saveJson(templatePath, {
+      if (options['save-template']) saveJson(templatePath, {
         input: { ...options, type: queryType, value: queryValue }, dates, request: selected.request,
         baseline: { summary: summary(selected.response.body), hash: businessHash(selected.response.body), browserElapsedMs: result.elapsedMs },
         capturedAt: selected.capturedAt
       });
       saveJson(path.join(RESULTS, `browser-data-${stamp}.json`), collected.body);
     }
-    console.log(JSON.stringify({ ...result, rows: `[${rows.length} rows]`, template: selected ? '已保存供爬虫复用' : '未捕获到商品数据请求' }, null, 2));
+    console.log(JSON.stringify({ ...result, rows: `[${rows.length} rows]`, template: selected && options['save-template'] ? '已按需保存私有爬虫模板' : '未保存爬虫模板' }, null, 2));
     console.log(`结果：${resultPath}`);
     if (!selected) throw new Error('未捕获到 search_value 等于商品标识的查询；直连版不会复用未经确认的请求');
   } finally { await context.close(); }
@@ -344,7 +347,7 @@ async function capture(options) {
 async function main(argv = process.argv.slice(2)) {
   const options = args(argv);
   if (options.help) {
-    console.log('用法：node browser.js --type asin|parent_asin|msku|sku|fnsku|spu|name --value 商品标识或品名 [--match fuzzy|exact] [--country 德国] [--shop 店铺名] [--period prev30 | --from YYYY-MM-DD --to YYYY-MM-DD]');
+    console.log('用法：node browser.js --type asin|parent_asin|msku|sku|fnsku|spu|name --value 商品标识或品名 [--match fuzzy|exact] [--country 德国] [--shop 店铺名] [--period prev30 | --from YYYY-MM-DD --to YYYY-MM-DD] [--save-template] [--diagnostics]');
     return;
   }
   await capture(validate(options));

@@ -1,0 +1,39 @@
+name: Build Windows
+on:
+  workflow_dispatch:
+  workflow_call:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.21.0'
+          cache: npm
+      - run: node scripts/release-version.cjs
+      - run: npm ci --omit=dev --no-audit --no-fund
+      - run: npm test
+      - name: Build and test native application
+        shell: powershell
+        run: |
+          & desktop/build-exe.ps1
+          & desktop/test-exe.ps1 -Mode self-test
+          & desktop/test-exe.ps1 -Mode smoke-test
+          & desktop/package-windows.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-package
+          path: |
+            dist/*-windows-x64.zip
+            dist/SHA256SUMS-windows.txt
+          if-no-files-found: error
+          retention-days: 14

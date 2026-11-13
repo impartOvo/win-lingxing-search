@@ -1,12 +1,12 @@
 {
   "name": "win-lingxing-search",
   "private": true,
-  "version": "1.1.0",
+  "version": "1.2.0",
   "main": "mac/main.cjs",
   "scripts": {
     "browser": "node browser.js",
     "crawler": "node crawler.js",
-    "test": "node --test tests/mac-data.test.cjs",
+    "test": "node --test tests/*.test.cjs",
     "mac:runtime": "install-electron",
     "mac:dev": "install-electron && electron .",
     "mac:pack": "install-electron && electron-builder --config electron-builder.mac.json --publish never"

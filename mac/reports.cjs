@@ -1,7 +1,16 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
-const { validate } = require('../shared');
+const { args, validate, COUNTRIES } = require('../shared');
+
+function collectionLaunch(argv) {
+  const start = argv.indexOf('--collect-once');
+  if (start < 0) return null;
+  const input = args(argv.slice(start + 1));
+  const report = input['test-report'];
+  delete input['test-report'];
+  return { input: validate(input), report };
+}
 
 function collectionArgs(input) {
   const options = validate({ ...input });
@@ -9,6 +18,7 @@ function collectionArgs(input) {
   for (const key of ['type', 'value', 'match', 'country', 'shop', 'from', 'to', 'period']) {
     if (options[key]) out.push(`--${key}`, String(options[key]));
   }
+  for (const key of ['save-template', 'diagnostics']) if (options[key]) out.push(`--${key}`);
   return out;
 }
 function summaryPath(directory, name) {
@@ -36,4 +46,4 @@ function history(directory) {
       } catch { return []; }
     });
 }
-module.exports = { collectionArgs, summaryPath, readBundle, history };
+module.exports = { COUNTRIES, collectionLaunch, collectionArgs, summaryPath, readBundle, history };

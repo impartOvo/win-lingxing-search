@@ -13,6 +13,15 @@ if ([System.IO.Path]::GetFullPath($nodeSource) -ne $nodeDestination) { Copy-Item
 $licensePath = Join-Path ([System.IO.Path]::GetDirectoryName($nodeSource)) 'LICENSE'
 if (Test-Path -LiteralPath $licensePath) { Copy-Item -LiteralPath $licensePath -Destination (Join-Path $runtime 'Node-LICENSE.txt') -Force }
 
+$version = (& node (Join-Path $appRoot 'scripts\release-version.cjs')).Trim()
+if ($LASTEXITCODE -ne 0) { throw 'Invalid release version' }
+$versionSource = '[assembly: System.Reflection.AssemblyVersion("' + $version + '.0")][assembly: System.Reflection.AssemblyFileVersion("' + $version + '.0")][assembly: System.Reflection.AssemblyInformationalVersion("' + $version + '")]'
+[System.IO.File]::WriteAllText((Join-Path $PSScriptRoot 'Version.g.cs'), $versionSource, [System.Text.UTF8Encoding]::new($false))
+if (-not (Test-Path -LiteralPath (Join-Path $runtime 'Node-LICENSE.txt'))) {
+    $nodeVersion = (& $nodeSource --version).Trim()
+    Invoke-WebRequest -UseBasicParsing -Uri ("https://raw.githubusercontent.com/nodejs/node/" + $nodeVersion + "/LICENSE") -OutFile (Join-Path $runtime 'Node-LICENSE.txt')
+}
+
 # Create a small application icon from native drawing primitives.
 Add-Type -AssemblyName System.Drawing
 $iconPath = Join-Path $PSScriptRoot 'app.ico'
@@ -48,7 +57,7 @@ try {
 } finally { $writer.Dispose(); $stream.Dispose() }
 
 $references = @('System.dll','System.Core.dll','System.Web.Extensions.dll','System.Xaml.dll','WPF\PresentationFramework.dll','WPF\PresentationCore.dll','WPF\WindowsBase.dll')
-$arguments = @('/nologo','/target:winexe','/platform:x64','/optimize+','/codepage:65001',('/out:'+(Join-Path $appRoot '商品诊断.exe')),('/win32manifest:'+(Join-Path $PSScriptRoot 'app.manifest')),('/win32icon:'+$iconPath),('/resource:'+(Join-Path $appRoot 'launcher.xaml')+',ProductDiagnosis.launcher.xaml'),('/resource:'+$iconPath+',ProductDiagnosis.app.ico'))
+$arguments = @('/nologo','/target:winexe','/platform:x64','/optimize+','/codepage:65001',('/out:'+(Join-Path $appRoot '商品诊断.exe')),('/win32manifest:'+(Join-Path $PSScriptRoot 'app.manifest')),('/win32icon:'+$iconPath),('/resource:'+(Join-Path $appRoot 'launcher.xaml')+',ProductDiagnosis.launcher.xaml'),('/resource:'+$iconPath+',ProductDiagnosis.app.ico'),('/resource:'+(Join-Path $appRoot 'countries.json')+',ProductDiagnosis.countries.json'))
 foreach ($reference in $references) { $path=Join-Path $framework $reference; if(-not (Test-Path -LiteralPath $path)){throw ('缺少程序集：'+$path)}; $arguments += '/reference:'+$path }
 $arguments += @(Get-ChildItem -LiteralPath $PSScriptRoot -Filter '*.cs' -File | ForEach-Object {$_.FullName})
 & $compiler @arguments

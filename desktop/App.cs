@@ -17,8 +17,6 @@ using System.Windows.Threading;
 [assembly: AssemblyTitle("商品诊断")]
 [assembly: AssemblyDescription("领星商品数据采集与查看")]
 [assembly: AssemblyProduct("商品诊断")]
-[assembly: AssemblyVersion("1.0.0.0")]
-[assembly: AssemblyFileVersion("1.0.0.0")]
 [assembly: System.Runtime.Versioning.TargetFramework(".NETFramework,Version=v4.8", FrameworkDisplayName = ".NET Framework 4.8")]
 
 namespace ProductDiagnosis
@@ -162,9 +160,16 @@ namespace ProductDiagnosis
             Get<ComboBox>("TypeBox").SelectedIndex = 0;
             Get<ComboBox>("MatchBox").ItemsSource = new[] { "模糊", "精确" };
             Get<ComboBox>("MatchBox").SelectedIndex = 0;
-            Get<ComboBox>("CountryBox").ItemsSource = new[] { "全部国家", "美国", "加拿大", "德国", "英国", "法国", "西班牙", "意大利", "荷兰", "比利时", "波兰", "瑞典", "爱尔兰", "土耳其", "墨西哥", "巴西", "印度", "日本", "澳洲", "阿联酋", "新加坡", "沙特阿拉伯", "埃及" };
+            Get<ComboBox>("CountryBox").ItemsSource = new[] { "全部国家" }.Concat(CountryOptions()).ToArray();
             Get<ComboBox>("CountryBox").SelectedIndex = 0;
             SetDates(30);
+        }
+
+        internal static string[] CountryOptions()
+        {
+            using (var resource = Assembly.GetExecutingAssembly().GetManifestResourceStream("ProductDiagnosis.countries.json"))
+            using (var reader = new StreamReader(resource, Encoding.UTF8))
+                return ReportData.Items(ReportData.Serializer().DeserializeObject(reader.ReadToEnd())).Select(ReportData.Text).ToArray();
         }
 
         private void Click(string name, Action action)

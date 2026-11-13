@@ -6,6 +6,7 @@ const os = require('node:os');
 const reports = require('./reports.cjs');
 
 const smoke = process.argv.includes('--smoke-test');
+const collectOnce = process.argv.includes('--collect-once');
 const smokeRoot = smoke ? fs.mkdtempSync(path.join(os.tmpdir(), 'lingxing-smoke-')) : null;
 app.setName('Lingxing Search');
 if (smokeRoot) app.setPath('userData', smokeRoot);
@@ -58,7 +59,7 @@ function runCollector(input, helpOnly = false) {
           if (code !== 0 || !output.includes('--country')) throw new Error('内置采集模块加载失败');
           status('就绪'); resolve({ ok: true }); return;
         }
-        if (!resultFile || path.resolve(path.dirname(resultFile)) !== path.resolve(resultRoot())) {
+        if (code !== 0 || !resultFile || path.resolve(path.dirname(resultFile)) !== path.resolve(resultRoot())) {
           throw new Error(`采集未完成（退出码 ${code}），请查看运行日志`);
         }
         lastBundle = reports.readBundle(resultRoot(), path.basename(resultFile));
@@ -69,7 +70,7 @@ function runCollector(input, helpOnly = false) {
 }
 
 function registerIPC() {
-  ipcMain.handle('app-state', () => ({ history: reports.history(resultRoot()), running: !!child, status: stage, logs, dataRoot: dataRoot() }));
+  ipcMain.handle('app-state', () => ({ history: reports.history(resultRoot()), running: !!child, status: stage, logs, dataRoot: dataRoot(), countries: reports.COUNTRIES }));
   ipcMain.handle('read-result', (_, name) => { lastBundle = reports.readBundle(resultRoot(), name); return lastBundle; });
   ipcMain.handle('collect', (_, input) => {
     if (child) throw new Error('已有采集任务正在运行');
@@ -105,7 +106,33 @@ function createWindow() {
     window.webContents.on('render-process-gone', (_, details) => console.error('Renderer process:', details.reason));
   }
   window.loadFile(path.join(__dirname, 'ui', 'index.html'));
-  window.webContents.once('did-finish-load', () => { if (smoke) runSmoke().catch(finishSmoke); });
+  window.webContents.once('did-finish-load', () => {
+    if (smoke) runSmoke().catch(finishSmoke);
+    else if (collectOnce) runCollectionTest();
+  });
+}
+
+async function runCollectionTest() {
+  let bundle, failure;
+  try {
+    const launch = reports.collectionLaunch(process.argv);
+    bundle = await runCollector(launch.input);
+  } catch (error) { failure = error; }
+  finishCollectionTest(failure, bundle);
+}
+
+function finishCollectionTest(error, bundle) {
+  const index = process.argv.indexOf('--test-report');
+  const file = index >= 0 && process.argv[index + 1] ? path.resolve(process.argv[index + 1]) : path.join(dataRoot(), '.private', 'collection-test.json');
+  try {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, JSON.stringify({ status: error ? 'error' : 'ok', mode: 'collection',
+      error: error?.message || null, version: app.getVersion(), platform: process.platform, arch: process.arch,
+      result: bundle ? path.join(resultRoot(), bundle.name) : null, rows: bundle?.rows.length ?? null,
+      finishedAt: new Date().toISOString() }, null, 2), { mode: 0o600 });
+  } catch (writeError) { console.error(writeError.message); error = writeError; }
+  if (error) console.error(error.message);
+  app.exit(error ? 1 : 0);
 }
 
 async function runSmoke() {
@@ -132,6 +159,7 @@ async function runSmoke() {
     if (document.querySelector('#return-rate').textContent !== '8.33%') throw new Error('退货率显示错误');
     if (document.querySelector('#refund-rate').textContent !== '16.67%') throw new Error('退款率显示错误');
     if (document.querySelectorAll('#variants tbody tr').length !== 2) throw new Error('关联明细缺失');
+    if (document.querySelectorAll('#countries option').length !== 22) throw new Error('国家候选缺失');
     document.querySelector('#edit-query').click();
     if (document.querySelector('#value').value !== 'B0ASIN0001') throw new Error('查询回填失败');
     return true;
@@ -158,7 +186,7 @@ else {
     ]));
     createWindow();
     app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
-  }).catch(error => { if (smoke) finishSmoke(error); else dialog.showErrorBox('启动失败', error.message); });
+  }).catch(error => { if (smoke) finishSmoke(error); else if (collectOnce) finishCollectionTest(error); else dialog.showErrorBox('启动失败', error.message); });
   app.on('before-quit', event => { if (child) { event.preventDefault(); status('采集正在进行，请等待完成后退出'); } });
   app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 }

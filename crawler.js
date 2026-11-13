@@ -2,7 +2,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { PRIVATE, RESULTS, DATA_HOSTS, args, mkdirs, saveJson, businessHash, summary, redactUrl } = require('./shared');
+const { PRIVATE, RESULTS, DATA_HOSTS, args, mkdirs, saveJson, replayHeaders, businessHash, summary, redactUrl } = require('./shared');
 
 function replaceExact(text, before, after) {
   if (!before || before === after) return text;
@@ -12,7 +12,7 @@ function replaceExact(text, before, after) {
 async function crawl(options) {
   mkdirs();
   const templatePath = path.join(PRIVATE, 'request-template.json');
-  if (!fs.existsSync(templatePath)) throw new Error('缺少查询模板；请先运行 browser.js 捕获一次产品表现查询');
+  if (!fs.existsSync(templatePath)) throw new Error('缺少查询模板；请先运行 browser.js --save-template 并提供商品查询条件');
   const template = JSON.parse(fs.readFileSync(templatePath, 'utf8'));
   let url = template.request.url;
   let body = template.request.postData;
@@ -32,7 +32,7 @@ async function crawl(options) {
   }
   const target = new URL(url);
   if (target.protocol !== 'https:' || !DATA_HOSTS.has(target.hostname)) throw new Error('模板目标不是领星 ERP');
-  const headers = { ...template.request.headers };
+  const headers = replayHeaders(template.request.headers);
   for (const key of Object.keys(headers)) if (/^(host|content-length|connection|accept-encoding)$/i.test(key)) delete headers[key];
   const start = performance.now();
   const response = await fetch(url, { method: template.request.method, headers, body: ['GET','HEAD'].includes(template.request.method) ? undefined : body, redirect: 'manual' });

@@ -1,4 +1,4 @@
-﻿param(
+param(
     [switch]$SelfTest,
     [switch]$SmokeTest,
     [string]$VerifyLog,
@@ -333,7 +333,7 @@ foreach ($kind in $types.Keys) { $ui.TypeBox.Items.Add($kind) | Out-Null }
 $ui.TypeBox.SelectedIndex = 0
 foreach ($match in @('模糊', '精确')) { $ui.MatchBox.Items.Add($match) | Out-Null }
 $ui.MatchBox.SelectedIndex = 0
-foreach ($country in @('全部国家', '美国', '加拿大', '德国', '英国', '法国', '西班牙', '意大利', '荷兰', '比利时', '波兰', '瑞典', '爱尔兰', '土耳其', '墨西哥', '巴西', '印度', '日本', '澳洲', '阿联酋', '新加坡', '沙特阿拉伯', '埃及')) { $ui.CountryBox.Items.Add($country) | Out-Null }
+foreach ($country in (@('全部国家') + @(Get-Content -LiteralPath (Join-Path $PSScriptRoot 'countries.json') -Raw -Encoding UTF8 | ConvertFrom-Json))) { $ui.CountryBox.Items.Add($country) | Out-Null }
 $ui.CountryBox.SelectedIndex = 0
 $ui.FromPicker.SelectedDate = [datetime]::Today.AddDays(-30)
 $ui.ToPicker.SelectedDate = [datetime]::Today.AddDays(-1)
