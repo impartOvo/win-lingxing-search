@@ -9,7 +9,7 @@ const smoke = process.argv.includes('--smoke-test');
 const smokeRoot = smoke ? fs.mkdtempSync(path.join(os.tmpdir(), 'lingxing-smoke-')) : null;
 app.setName('Lingxing Search');
 if (smokeRoot) app.setPath('userData', smokeRoot);
-let window, child, lastBundle, stage = '就绪', logs = [];
+let window, child, lastBundle, stage = '就绪', logs = [], smokeFinished = false;
 const dataRoot = () => app.getPath('userData');
 const resultRoot = () => path.join(dataRoot(), 'results');
 function send(channel, payload) { if (window && !window.isDestroyed()) window.webContents.send(channel, payload); }
@@ -23,7 +23,7 @@ function runCollector(input, helpOnly = false) {
   const logDir = path.join(dataRoot(), '.private', 'launcher-logs');
   fs.mkdirSync(logDir, { recursive: true });
   const logFile = path.join(logDir, `mac-${Date.now()}.log`);
-  const worker = utilityProcess.fork(path.join(__dirname, '..', 'browser.js'), args, {
+  const worker = utilityProcess.fork(path.join(__dirname, 'collector-worker.cjs'), args, {
     cwd: dataRoot(), env: { ...process.env, LINGXING_DATA_DIR: dataRoot() },
     serviceName: 'Lingxing collector', stdio: 'pipe'
   });
@@ -49,7 +49,8 @@ function runCollector(input, helpOnly = false) {
   worker.stderr.on('data', chunk => stream('err', chunk));
   status(helpOnly ? '检查采集模块' : '正在打开领星');
   return new Promise((resolve, reject) => {
-    worker.once('exit', code => {
+    worker.once('exit', async code => {
+      await Promise.all([worker.stdout, worker.stderr].map(stream => stream.readableEnded || stream.destroyed ? Promise.resolve() : new Promise(resolve => { stream.once('end', resolve); stream.once('close', resolve); })));
       Object.values(buffers).filter(Boolean).forEach(line);
       child = null;
       try {
@@ -100,7 +101,7 @@ function createWindow() {
   window.once('ready-to-show', () => window.show());
   if (smoke) {
     window.webContents.on('preload-error', (_, file, error) => console.error('Preload:', error.message));
-    window.webContents.on('console-message', (_, details) => { if (details.level === 'error') console.error('Renderer:', details.message); });
+    window.webContents.on('console-message', event => { if (event.level === 'error') console.error('Renderer:', event.message); });
     window.webContents.on('render-process-gone', (_, details) => console.error('Renderer process:', details.reason));
   }
   window.loadFile(path.join(__dirname, 'ui', 'index.html'));
@@ -138,6 +139,8 @@ async function runSmoke() {
   finishSmoke();
 }
 function finishSmoke(error) {
+  if (smokeFinished) return;
+  smokeFinished = true;
   const file = process.env.LINGXING_SMOKE_REPORT;
   if (file) fs.writeFileSync(file, JSON.stringify({ status: error ? 'error' : 'ok', error: error?.message || null, arch: process.arch, platform: process.platform, packaged: app.isPackaged, collector: 'utilityProcess', dataRootOutsideApp: !dataRoot().startsWith(app.getAppPath()) }, null, 2));
   if (error) console.error(error);

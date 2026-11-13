@@ -52,3 +52,12 @@ test('restricts history file names to the application result directory', () => {
   assert.throws(() => summaryPath('/data/results', '/other/browser-demo.json'));
   assert.throws(() => summaryPath('/data/results', 'browser-../private.json'));
 });
+test('collector worker flushes output and terminates on success and validation failure', () => {
+  const worker = path.join(root, 'mac', 'collector-worker.cjs');
+  const good = spawnSync(process.execPath, [worker, '--help'], { cwd: root, encoding: 'utf8', timeout: 10000 });
+  assert.equal(good.status, 0, good.stderr);
+  assert.match(good.stdout, /--country/);
+  const bad = spawnSync(process.execPath, [worker, '--type', 'invalid', '--value', 'demo'], { cwd: root, encoding: 'utf8', timeout: 10000 });
+  assert.equal(bad.status, 1);
+  assert.match(bad.stderr, /浏览器版失败/);
+});

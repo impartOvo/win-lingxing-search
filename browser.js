@@ -341,9 +341,15 @@ async function capture(options) {
   } finally { await context.close(); }
 }
 
-const options = args(process.argv.slice(2));
-if (options.help) {
-  console.log('用法：node browser.js --type asin|parent_asin|msku|sku|fnsku|name --value 商品标识或品名 [--match fuzzy|exact] [--country 德国] [--shop 店铺名] [--period prev30 | --from YYYY-MM-DD --to YYYY-MM-DD]');
-} else {
-  capture(validate(options)).catch(error => { console.error(`浏览器版失败：${error.message}`); process.exitCode = 1; });
+async function main(argv = process.argv.slice(2)) {
+  const options = args(argv);
+  if (options.help) {
+    console.log('用法：node browser.js --type asin|parent_asin|msku|sku|fnsku|spu|name --value 商品标识或品名 [--match fuzzy|exact] [--country 德国] [--shop 店铺名] [--period prev30 | --from YYYY-MM-DD --to YYYY-MM-DD]');
+    return;
+  }
+  await capture(validate(options));
 }
+if (require.main === module) {
+  main().catch(error => { console.error(`浏览器版失败：${error.message}`); process.exitCode = 1; });
+}
+module.exports = { capture, main };

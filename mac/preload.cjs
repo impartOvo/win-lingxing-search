@@ -6,8 +6,8 @@ contextBridge.exposeInMainWorld('desktop', {
   collect: input => ipcRenderer.invoke('collect', input),
   openFolder: which => ipcRenderer.invoke('open-folder', which),
   openJSON: () => ipcRenderer.invoke('open-json'),
-  onLog: callback => ipcRenderer.on('collector-log', (_, value) => callback(value)),
-  onStatus: callback => ipcRenderer.on('collector-status', (_, value) => callback(value)),
-  onResult: callback => ipcRenderer.on('collector-result', (_, value) => callback(value)),
-  onError: callback => ipcRenderer.on('collector-error', (_, value) => callback(value))
+  onLog: callback => { ipcRenderer.on('collector-log', (_, value) => callback(value)); },
+  onStatus: callback => { ipcRenderer.on('collector-status', (_, value) => callback(value)); },
+  onResult: callback => { ipcRenderer.on('collector-result', (_, value) => callback(value)); },
+  onError: callback => { ipcRenderer.on('collector-error', (_, value) => callback(value)); }
 });
