@@ -1,0 +1,30 @@
+name: Prepare macOS dependency lock
+on:
+  workflow_dispatch:
+    inputs:
+      package_json:
+        description: Package manifest to resolve
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  lock:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Resolve dependency lock without executing package scripts
+        env:
+          PACKAGE_JSON: ${{ inputs.package_json }}
+        run: |
+          node -e 'const fs=require("node:fs"); const p=JSON.parse(process.env.PACKAGE_JSON); fs.writeFileSync("package.json",JSON.stringify(p,null,2));'
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-package-lock
+          path: package-lock.json
+          retention-days: 7
