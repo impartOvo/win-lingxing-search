@@ -66,6 +66,16 @@ function renderResult(value) {
   set('result-dates', `${(value.summary.dates || []).join(' — ')} · ${value.rows.length} 条商品记录`);
   renderRecord(); show('results');
 }
+function resetPage() {
+  bundle = undefined; selected = 0; variants = []; sortDescending = true;
+  $('query').reset();
+  $('from').value = ''; $('to').value = '';
+  $('record').replaceChildren(); $('variants').querySelector('tbody').replaceChildren();
+  $('result-content').hidden = true; $('empty').hidden = false;
+  $('empty').querySelector('h2').textContent = '还没有采集结果';
+  $('log').textContent = '';
+  error(''); status({ running: false, text: '就绪' }); show('collect');
+}
 async function reloadHistory() {
   const state = await api.state();
   set('history-count', `${state.history.length} 次成功采集 · 每次对应一组结果文件`);
@@ -78,12 +88,13 @@ async function reloadHistory() {
   return state;
 }
 window.reloadHistory = reloadHistory;
-function status(value) { set('status', `● ${value.text}`); $('run').disabled = value.running; $('query-fields').disabled = value.running; }
+function status(value) { set('status', `● ${value.text}`); $('run').disabled = value.running; $('query-fields').disabled = value.running; $('reset-page').disabled = value.running; }
 document.querySelectorAll('nav button').forEach(node => { node.onclick = guarded(async () => { show(node.dataset.page); if (node.dataset.page === 'history') await reloadHistory(); }); });
 document.querySelectorAll('[data-days]').forEach(node => { node.onclick = () => dates(Number(node.dataset.days)); });
 $('query').onsubmit = event => { event.preventDefault(); guarded(async () => { error(''); await api.collect(Object.fromEntries(['type', 'value', 'match', 'country', 'shop', 'from', 'to'].map(key => [key, $(key).value.trim()]))); })(); };
 $('record').onchange = () => { selected = Number($('record').value); renderRecord(); };
 $('edit-query').onclick = () => { fill(bundle.summary.input, bundle.summary.dates); show('collect'); };
+$('reset-page').onclick = resetPage;
 $('go-collect').onclick = () => show('collect'); $('view-logs').onclick = () => show('logs');
 $('open-results').onclick = guarded(() => api.openFolder('results')); $('open-data').onclick = guarded(() => api.openFolder('data'));
 $('open-json').onclick = guarded(() => api.openJSON()); $('refresh-history').onclick = guarded(reloadHistory);

@@ -2,6 +2,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const { randomUUID } = require('node:crypto');
 const { chromium } = require('playwright');
 const { PRIVATE, RESULTS, PAGE_URL, DATA_HOSTS, args, validate, mkdirs, saveJson, replayHeaders, captureSummary, businessHash, summary } = require('./shared');
 
@@ -205,19 +206,25 @@ async function collectPages(page, firstResponse, queryValue) {
 
 async function capture(options) {
   mkdirs();
+  const isolated = process.env.LINGXING_ISOLATED_CAPTURE === '1';
   const templatePath = path.join(PRIVATE, 'request-template.json');
-  if (fs.existsSync(templatePath)) fs.unlinkSync(templatePath);
+  if (!isolated && fs.existsSync(templatePath)) fs.unlinkSync(templatePath);
   const diagnosticsPath = path.join(PRIVATE, 'last-captures.json');
-  if (fs.existsSync(diagnosticsPath)) fs.unlinkSync(diagnosticsPath);
+  if (!isolated && fs.existsSync(diagnosticsPath)) fs.unlinkSync(diagnosticsPath);
   const start = performance.now();
   const profile = path.join(PRIVATE, 'chrome-profile');
   const sessionPath = path.join(PRIVATE, 'session-storage.json');
   const authPath = path.join(PRIVATE, 'auth-state.json');
-  const context = await chromium.launchPersistentContext(profile, {
+  if (isolated && !fs.existsSync(authPath)) throw new Error('自动化尚无可用登录态，请先在采集条件页手动完成一次采集。');
+  let browser = null, context;
+  try {
+    if (isolated) {
+      browser = await chromium.launch({ channel: 'chrome', headless: false });
+      context = await browser.newContext({ storageState: authPath, acceptDownloads: true, viewport: { width: 1500, height: 900 } });
+    } else context = await chromium.launchPersistentContext(profile, {
     channel: 'chrome', headless: false, acceptDownloads: true,
     viewport: { width: 1500, height: 900 }
   });
-  try {
     if (fs.existsSync(authPath)) {
       const state = JSON.parse(fs.readFileSync(authPath, 'utf8'));
       if (Array.isArray(state.cookies) && state.cookies.length) await context.addCookies(state.cookies);
@@ -259,6 +266,7 @@ async function capture(options) {
     try {
       await productTab.waitFor({ state: 'visible', timeout: 30000 });
     } catch {
+      if (isolated) throw new Error('自动化登录态已失效，请回到采集条件页手动登录并完成一次采集，再重跑任务。');
       console.log('脚本专用 Chrome 尚未登录领星。请在打开的窗口完成登录，并进入「产品表现」；脚本会自动继续。');
       const loginTimeout = Number(process.env.LINGXING_LOGIN_TIMEOUT_MS || 600000);
       await productTab.waitFor({ state: 'visible', timeout: loginTimeout });
@@ -271,10 +279,12 @@ async function capture(options) {
     console.log('阶段：筛选与采集');
     await resetReport(page);
     await page.getByRole('tab', { name: tabType, exact: true }).click();
-    await context.storageState({ path: authPath });
-    if (process.platform !== 'win32') fs.chmodSync(authPath, 0o600);
-    const sessionStorageData = await page.evaluate(() => Object.fromEntries(Object.entries(sessionStorage)));
-    saveJson(sessionPath, sessionStorageData);
+    if (!isolated) {
+      await context.storageState({ path: authPath });
+      if (process.platform !== 'win32') fs.chmodSync(authPath, 0o600);
+      const sessionStorageData = await page.evaluate(() => Object.fromEntries(Object.entries(sessionStorage)));
+      saveJson(sessionPath, sessionStorageData);
+    }
     const country = await chooseCountry(page, options.country);
     const shop = await chooseShop(page, options.shop);
     const dates = options.from ? await chooseDates(page, options.from, options.to) : await choosePeriod(page, options.period);
@@ -315,10 +325,11 @@ async function capture(options) {
     if (selected && options.shop && !requestFilters.sids) throw new Error('店铺已选择，但商品请求未包含店铺筛选');
     if (selected && !options.country && requestFilters.mids) throw new Error('未指定国家，但商品请求仍含有国家筛选');
     if (selected && !options.shop && requestFilters.sids) throw new Error('未指定店铺，但商品请求仍含有店铺筛选');
-    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-') + (isolated ? '-' + randomUUID() : '');
     const resultPath = path.join(RESULTS, `browser-${stamp}.json`);
     const result = {
       method: 'browser', input: options, resolved, query: { type: queryType, value: queryValue, tab: tabType },
+      ...(isolated ? { automation: { taskId: process.env.LINGXING_AUTOMATION_TASK_ID, runId: process.env.LINGXING_AUTOMATION_RUN_ID } } : {}),
       appliedFilters: { country, shop, match }, requestFilters, page: PAGE_URL, dates,
       pagination: { total: collected.total, collected: collected.body.data.list.length, pageSize: collected.pageSize, pages: collected.pages },
       fetchedAt: new Date().toISOString(), elapsedMs: Math.round(performance.now() - start), rows,
@@ -341,7 +352,8 @@ async function capture(options) {
     console.log(JSON.stringify({ ...result, rows: `[${rows.length} rows]`, template: selected && options['save-template'] ? '已按需保存私有爬虫模板' : '未保存爬虫模板' }, null, 2));
     console.log(`结果：${resultPath}`);
     if (!selected) throw new Error('未捕获到 search_value 等于商品标识的查询；直连版不会复用未经确认的请求');
-  } finally { await context.close(); }
+    return resultPath;
+  } finally { try { if (context) await context.close(); } finally { if (browser) await browser.close(); } }
 }
 
 async function main(argv = process.argv.slice(2)) {

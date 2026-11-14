@@ -4,6 +4,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
 const reports = require('./reports.cjs');
+const automation = require('../automation/cli.cjs');
 
 const smoke = process.argv.includes('--smoke-test');
 const collectOnce = process.argv.includes('--collect-once');
@@ -70,6 +71,12 @@ function runCollector(input, helpOnly = false) {
 }
 
 function registerIPC() {
+  ipcMain.handle('automation', (_, request) => automation.execute(request, dataRoot()));
+  ipcMain.handle('automation-log', async (_, id) => {
+    if (!/^[a-f0-9-]{36}$/i.test(id)) throw new Error('无效的运行标识');
+    const error = await shell.openPath(path.join(dataRoot(), '.private', 'automation', 'logs', id + '.log'));
+    if (error) throw new Error(error);
+  });
   ipcMain.handle('app-state', () => ({ history: reports.history(resultRoot()), running: !!child, status: stage, logs, dataRoot: dataRoot(), countries: reports.COUNTRIES }));
   ipcMain.handle('read-result', (_, name) => { lastBundle = reports.readBundle(resultRoot(), name); return lastBundle; });
   ipcMain.handle('collect', (_, input) => {
@@ -162,6 +169,9 @@ async function runSmoke() {
     if (document.querySelectorAll('#countries option').length !== 22) throw new Error('国家候选缺失');
     document.querySelector('#edit-query').click();
     if (document.querySelector('#value').value !== 'B0ASIN0001') throw new Error('查询回填失败');
+    document.querySelector('#reset-page').click();
+    if (document.querySelector('#value').value || document.querySelector('#from').value || !document.querySelector('#result-content').hidden || document.querySelector('#results').hidden === false) throw new Error('页面重置失败');
+    if (document.querySelector('#empty').hidden) throw new Error('空结果提示未保留');
     return true;
   })()`);
   finishSmoke();
