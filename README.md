@@ -466,7 +466,7 @@ Windows 工作流在 `main` 推送、PR 和手动触发时构建。Mac 工作流
 | `tests/`、`examples/` | 测试和合成数据示例 |
 | `launcher.ps1`、`ui-data.ps1` | 早期界面参考，当前 EXE 不依赖它们 |
 
-相关文档：[自动化说明](docs/automation.md) · [数据格式](docs/data-format.md) · [隐私发布流程](docs/privacy.md) · [Mac 发布说明](docs/mac-release-notes.md) · [历史会话整理](docs/session-summary.md)。
+相关文档：[Bug 修复记录](docs/bugfix-log.md) · [更新记录](docs/release-notes.md) · [自动化说明](docs/automation.md) · [数据格式](docs/data-format.md) · [隐私发布流程](docs/privacy.md) · [Mac 发布说明](docs/mac-release-notes.md) · [历史会话整理](docs/session-summary.md)。
 
 ## 许可证
 
