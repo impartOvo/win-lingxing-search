@@ -1,126 +1,472 @@
-# win-lingxing-search
+# 商品诊断 · win-lingxing-search
 
-领星 ERP 商品数据采集与查看工具。Windows 使用原生 C# / WPF，macOS 使用 Electron；两端均采用深灰背景、蓝色强调色和侧栏卡片布局。双击桌面应用即可运行。
+把领星 ERP 的商品查询条件保存下来，通过桌面界面或定时任务完成采集，再将结构化结果交给人或 AI 分析。
 
-本地源码新增「自动化任务」：按商品筛选条件、星期、时间及动态日期范围定时采集，支持多任务同时运行，关闭主窗口后仍可执行。操作见[自动化任务说明](docs/automation.md)。该功能尚未发布到下方链接的 v1.2.2 安装包。
+Windows 使用原生 C# / WPF，macOS 使用 Electron；两端采用深色背景、蓝色强调色、侧栏和卡片布局。日常使用通过桌面应用完成，无需每次打开终端输入命令。
 
-## 分支说明
+## 目录
+
+- [为什么创建这个项目](#为什么创建这个项目)
+- [版本与分支](#版本与分支)
+- [功能与数据范围](#功能与数据范围)
+- [安装与首次使用](#安装与首次使用)
+- [日常操作](#日常操作)
+- [自动化任务教程](#自动化任务教程)
+- [如何让 AI 使用](#如何让-ai-使用)
+- [文件、隐私与迁移](#文件隐私与迁移)
+- [常见问题](#常见问题)
+- [源码运行与构建](#源码运行与构建)
+- [验证情况与项目结构](#验证情况与项目结构)
+- [许可证](#许可证)
+
+## 为什么创建这个项目
+
+在领星后台检查商品表现，通常需要反复打开页面、选择商品类型、输入商品、筛选国家和店铺、设置日期，再整理数据。如果每天要检查多个商品、多个国家，这些重复操作会占用不少时间。让 AI 每次从头操作浏览器，也需要重复导航和核对条件。
+
+本项目把这些步骤整理成可重复执行的采集流程：
+
+1. **减少重复查询**：填写一次条件，通过界面启动采集和查看结果。
+2. **保留查询上下文**：保存商品、国家、店铺、日期和实际数据，方便以后核对。
+3. **支持定时检查**：将常用查询保存为任务，按设定的星期和时间执行。
+4. **方便 AI 分析**：输出 JSON，让支持读取文件的 AI 直接使用结构化数据。
+
+项目适合已能登录领星、需要重复查询商品表现的运营人员。它通过专用 Chrome 登录态和 Playwright 页面操作读取「产品表现」，不要求领星付费官方 API。读取权限仍取决于当前账号能查看的数据。
+
+“商品诊断”是应用名称。当前程序负责采集、展示和留档，经营判断由使用者或接收数据的 AI 完成；应用本身没有接入大模型，也没有自动修改广告、价格或 Listing 的功能。
+
+## 版本与分支
+
+截至 **2026-11-14**，版本状态如下：
+
+| 项目 | 当前状态 |
+|---|---|
+| 最新正式 Release | [v1.2.2](https://github.com/impartOvo/win-lingxing-search/releases/tag/v1.2.2) |
+| 源码中的应用版本号 | `package.json` 仍为 `1.2.2`；Windows 文件版本由构建脚本生成 |
+| 当前主分支新增功能 | 重置页面、定时自动采集、动态日期范围、多任务并发、自动化运行记录 |
+| 新功能的安装包状态 | 上述新增功能尚未发布为新的正式 Release；旧 v1.2.2 下载包不包含这些新增功能 |
+
+**需要自动化功能时，请使用当前源码构建的应用，或等待包含该功能的新 Release。只下载旧 v1.2.2 ZIP 不会得到自动化页面。**
 
 | 分支 | 用途 |
 |---|---|
-| [`main`](https://github.com/impartOvo/win-lingxing-search/tree/main) | 项目主线、公共采集逻辑与使用文档 |
-| [`mac`](https://github.com/impartOvo/win-lingxing-search/tree/mac) | 保存完整 macOS 适配，包含深色界面、采集服务、Apple 芯片和 Intel 打包流程 |
+| [`main`](https://github.com/impartOvo/win-lingxing-search/tree/main) | 当前主线源码，包含 Windows、Mac 和公共采集逻辑 |
+| [`mac`](https://github.com/impartOvo/win-lingxing-search/tree/mac) | 当前同步的 Mac 开发分支，同样保留完整项目源码 |
+| [`main0.9`](https://github.com/impartOvo/win-lingxing-search/tree/main0.9) | 新增重置和自动化功能前的 `main` 备份 |
+| [`mac0.9`](https://github.com/impartOvo/win-lingxing-search/tree/mac0.9) | 新增重置和自动化功能前的 `mac` 备份 |
 
-`mac` 分支基于已经通过双架构构建和启动检查的 v1.1.0 Mac 版本建立。Mac 开发与后续适配可从该分支开始；普通使用者直接下载对应安装包即可。
+`main0.9`、`mac0.9` 是备份分支名称，不表示其安装包版本号为 0.9。两个备份保留在提交 `1221da9`；重置和自动化功能在提交 `06c9705` 加入主分支。后续源码提交与正式安装包版本应分别核对。
 
-## 下载运行
+## 功能与数据范围
+
+### 可以做什么
+
+- 按 ASIN、父 ASIN、SKU、MSKU、FNSKU、SPU 或品名查询。
+- 选择模糊或精确搜索，按国家、店铺和日期限定范围。
+- 自动重置领星页面原有筛选，先选择国家，再选择店铺，并核对部分筛选和请求信息。
+- 分页采集，展示指标卡片、流量与转化、库存与退款、关联 MSKU 明细。
+- 保存结果，重新打开历史查询，重置当前页面。
+- 将查询保存为定时任务，为每项任务设置不同的日期范围、星期和时间。
+- 同时启动多项自动任务，分别记录成功、失败和日志。
+
+### 能取得哪些数据
+
+采集对象是领星「产品表现」的**所选时间段汇总**，字段是否有值取决于实际响应。
+
+| 数据类别 | 常见字段 |
+|---|---|
+| 销售 | 销量、销售额、币种 |
+| 退货与退款 | 退货量／率、退款量／率，两者分开展示 |
+| 流量与转化 | 会话数、页面浏览量、浏览器／手机端会话、转化率 |
+| 广告 | 广告归因销售额，以及响应中存在的广告花费、ACOS、TACOS 等 |
+| 库存 | FBA 可售库存、预计可售天数 |
+| 商品明细 | 响应附带的关联 MSKU、SKU、店铺、国家、销量、售价等 |
+
+字段名和口径见[数据格式说明](docs/data-format.md)。当前没有完整跨期对比界面、逐日趋势采集、退货原因明细或店铺检查报告。关联 MSKU 明细也不代表已经取得每个子体的全部退货、利润或流量指标。
+
+## 安装与首次使用
 
 ### Windows
 
-从 [v1.2.2 Windows Release](https://github.com/impartOvo/win-lingxing-search/releases/tag/v1.2.2) 下载 Windows x64 ZIP，解压到有写入权限的目录，双击 `商品诊断.exe`。
+运行条件：Windows x64、.NET Framework 4.8 / 4.8.1、Google Chrome。
 
-- 系统：Windows x64，.NET Framework 4.8 / 4.8.1，已安装 Google Chrome。
-- 便携包包含 Node 运行时与 Playwright 依赖，保留完整目录。
-- 第一次采集在应用打开的专用 Chrome 中自行登录领星；无需官方付费 API。
-- 点击「采集条件」，填写标识、匹配方式、国家、店铺和日期，点击「开始采集」。
-- 可按 ASIN、父 ASIN、SKU、MSKU、FNSKU、SPU 或品名查询，支持模糊和精确搜索。
-- FNSKU 会先从 Listing 解析为 MSKU，再查询产品表现；仍匹配多条时会报错。
-- 结果页提供指标卡片、流量与转化、库存与退款、关联 MSKU 明细；历史页可重开本机结果。
+1. 从 [Release 页面](https://github.com/impartOvo/win-lingxing-search/releases/tag/v1.2.2) 下载 Windows x64 ZIP，或使用当前源码自行构建。
+2. 将整个目录解压到当前用户有写入权限、准备长期保留的位置。
+3. 双击 `商品诊断.exe`。便携包包含 Node 运行时和 Playwright 依赖，请保留完整目录。
+4. 打开「采集条件」，先用一个已知商品做一次手动采集。
+5. 如果弹出的专用 Chrome 尚未登录，请在该窗口登录领星并进入「产品表现」。程序会继续采集。
+6. 成功后检查结果页中的商品、店铺／国家和日期，确认与预期一致。
+
+普通 Chrome 窗口中已经登录，不代表本应用的专用 Chrome 也已经登录。首次使用和登录失效时，以程序打开的窗口为准。
 
 ### macOS
 
-从 [v1.2.2 Release](https://github.com/impartOvo/win-lingxing-search/releases/tag/v1.2.2) 下载 Mac ZIP：Apple 芯片选择 `mac-arm64.zip`，Intel 选择 `mac-x64.zip`。解压后将 `Lingxing Search.app` 拖入「应用程序」并打开。支持 macOS 13 Ventura 或以上，需要 Google Chrome；无需另外安装 Node、.NET 或 Python。
+运行条件：macOS 13 Ventura 或以上、Google Chrome。安装包内置运行时，无需另外安装 Node、.NET 或 Python。
 
-| Mac 类型 | 下载 |
+| 电脑类型 | 已发布的 v1.2.2 下载包 |
 |---|---|
-| Apple 芯片（M 系列，ARM64） | [下载 Apple 芯片版](https://github.com/impartOvo/win-lingxing-search/releases/download/v1.2.2/lingxing-search-1.2.2-mac-arm64.zip) |
-| Intel（x64） | [下载 Intel 版](https://github.com/impartOvo/win-lingxing-search/releases/download/v1.2.2/lingxing-search-1.2.2-mac-x64.zip) |
+| Apple 芯片（M 系列，ARM64） | [Apple 芯片版](https://github.com/impartOvo/win-lingxing-search/releases/download/v1.2.2/lingxing-search-1.2.2-mac-arm64.zip) |
+| Intel（x64） | [Intel 版](https://github.com/impartOvo/win-lingxing-search/releases/download/v1.2.2/lingxing-search-1.2.2-mac-x64.zip) |
 
-Mac 版内置运行时，以独立的 Node utility process 运行相同采集脚本。登录态与结果位于 `~/Library/Application Support/Lingxing Search/`，可通过应用内「打开数据目录」查看；结果在其 `results/` 子目录。迁移已有报表时，将同一时间戳的两个 JSON 放入该 results 目录。不同电脑首次使用需要重新登录，不复制浏览器登录目录。
+解压后将 `Lingxing Search.app` 放入「应用程序」或其他固定位置，再打开应用、填写条件并完成首次登录。
 
-当前 Mac 包采用 ad-hoc 临时签名，未使用 Apple Developer ID 或公证。首次打开可能需要在 macOS「系统设置 → 隐私与安全性」中确认本应用；不要关闭系统整体安全保护。参见 [Mac 发布说明](docs/mac-release-notes.md)。
+当前正式 Mac 包采用 ad-hoc 临时签名，未经过 Apple Developer ID 签名或公证。首次打开可能需要在「系统设置 → 隐私与安全性」中确认应用，具体见 [Mac 发布说明](docs/mac-release-notes.md)。
 
-当前版本查询「产品表现」的时间段汇总。没有采集逐日趋势、退货原因明细或店铺检查报告；领星页面或内部请求变化后可能需要更新采集代码。
+Mac 数据目录为 `~/Library/Application Support/Lingxing Search/`，可通过侧栏「打开数据目录」查看。**当前新增自动化功能尚未完成 Mac 运行验证**，请同时参考下方验证情况。
 
-## 源码构建
+## 日常操作
 
-需要 Windows、Node.js 20 或以上、npm，以及 .NET Framework C# 编译器。锁文件固定了已验证的依赖版本。
+### 1. 设置采集条件
 
-```powershell
-npm ci --omit=dev
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File desktop/build-exe.ps1
+| 条件 | 填写方法 |
+|---|---|
+| 标识类型 | 按实际输入选择，例如输入品名时选「品名」 |
+| 搜索方式 | 确定标识时可选精确；按品名片段搜索可选模糊 |
+| 商品标识或品名 | 一次输入一个查询值；模糊查询可能返回多条汇总记录 |
+| 国家 | 选择国家；Windows 选「全部国家」、Mac 留空表示不按国家限定 |
+| 店铺 | 留空表示全部店铺；填写完整名称或能唯一匹配的片段 |
+| 开始／结束日期 | 指定采集区间；快捷按钮「前 7 天／前 30 天」均截至昨天 |
+
+店铺片段匹配到多个选项时，程序会要求填写更明确的名称。FNSKU 会先从 Listing 解析为 MSKU；指定国家／店铺范围内仍不唯一时会报错，需要改用更明确的标识。
+
+### 2. 开始采集与查看结果
+
+点击「开始采集」，等待筛选、取数、分页和保存完成。需要检查进度或错误时，打开「运行日志」。
+
+结果页上方的下拉框用于选择本次返回的商品记录；下方卡片和 MSKU 表格随选择更新。币种以当前记录为准，缺失值显示为 `—`。点击「打开数据」可打开该次采集的业务 JSON；「修改条件」会回填查询条件，便于再查一次。
+
+在「历史记录」中可以重新打开以前成功的采集。「打开结果文件夹」用于查找可交给 AI 的 JSON 文件。
+
+### 3. 重置页面
+
+当前源码中的页头「重置页面」会清空手动查询的商品、国家／店铺条件、日期和当前结果展示，将标识类型、搜索方式恢复为默认选项，并返回空白采集页。
+
+重置保留历史结果文件、登录态和已保存的自动化任务，不会替你暂停定时运行。手动采集进行时，该按钮不可用。
+
+## 自动化任务教程
+
+以下操作适用于包含自动化功能的当前源码构建版本。详细机制见[自动化说明](docs/automation.md)。
+
+### 第一步：先完成一次手动采集
+
+自动任务读取手动采集保存的登录态。先在「采集条件」页登录并成功采集一次，再创建自动任务。登录失效后，也通过这一步更新登录态。
+
+### 第二步：保存第一项任务
+
+1. 在侧栏进入「自动化任务」，点击「新建任务」。
+2. 填写一个便于辨认的任务名称，例如“商品 A · 国家 A · 日检”。
+3. 选择标识类型、匹配方式，填写商品、国家和店铺。
+4. 选择采集日期范围。日常检查可选择「昨天」或「前 7 天」，按需要调整。
+5. 设置运行时间，例如 `09:00`，并勾选周一到周六。
+6. 勾选「启用此任务」，点击「保存任务」。
+
+编辑器默认周一至周六、09:00，但填好和保存任务之前不会创建定时采集。
+
+「使用当前采集条件」可以复制手动采集页的内容。如果原页面已有起止日期，复制后会选择**固定日期区间**；需要每天滚动日期时，请再改选「昨天」「前 7 天」等动态范围。
+
+### 第三步：添加其他任务并试跑
+
+再次点击「新建任务」，填写商品 B、国家 B，保存为另一项任务。两项任务可以使用相同的运行时间，也可以分别设置。
+
+先通过「立即运行选中任务」（Mac 为任务行中的「立即运行」）检查单项条件，再通过「同时运行全部启用任务」试跑全部启用项。失败原因可在运行记录和日志中查看。
+
+例如，以下配置会在周一至周六的 09:00 同时发起两项采集：
+
+| 任务 | 查询值 | 国家 | 日期范围 | 星期 | 时间 |
+|---|---|---|---|---|---|
+| 商品 A 日检 | 实际品名 A | 实际国家 A | 昨天 | 周一至周六 | 09:00 |
+| 商品 B 周度观察 | 实际品名 B | 实际国家 B | 前 7 天 | 周一至周六 | 09:00 |
+
+这里的 A、B 是填写示意，请替换为账号中的真实商品和国家。
+
+### 第四步：启用定时总开关
+
+确认任务已保存、各项条件正确后，点击页面上方的「启用定时运行」。
+
+- **任务开关**决定某项任务是否参与定时和“全部启用任务”运行。
+- **定时总开关**决定系统是否按时间自动触发。
+- 单项「立即运行」可运行已保存的任务，即使该任务停用；立即运行也不受定时总开关影响。
+
+启用后，Windows 注册当前用户的系统计划任务，Mac 注册当前用户的 LaunchAgent。调度按分钟检查，目标时间是本机时区的相应分钟；进程和浏览器启动仍有耗时，不保证在该分钟第 0 秒就完成打开或取数。
+
+### 日期范围怎么选
+
+| 选项 | 每次执行时读取的日期 |
+|---|---|
+| 今天 | 本机今天；当天数据可能尚未完整 |
+| 昨天 | 本机昨天，一个自然日 |
+| 近 7 天 | 今天及之前 6 天，包含今天 |
+| 前 7 天 | 昨天及之前 6 天，不包含今天 |
+| 本周 | 本周周一至今天 |
+| 上周 | 上一个完整周一至周日 |
+| 近 30 天 | 今天及之前 29 天，包含今天 |
+| 前 30 天 | 昨天及之前 29 天，不包含今天 |
+| 本月 | 本月 1 日至今天 |
+| 上月 | 上一个完整自然月 |
+| 固定日期区间 | 始终使用填写的起止日期 |
+
+动态日期在**每次触发时**重新计算。例如，每周一执行「上周」，查询的是刚结束的完整一周；「前 30 天」和「上月」并不是同一个区间。
+
+### 并发、关闭窗口与暂停
+
+程序不设置任务数量或并发数量上限。同一分钟到期的任务会分别启动独立采集进程和 Chrome 会话；某项采集失败不取消其他采集。实际并发能力取决于电脑内存、CPU、网络和领星服务响应，无上限设置不代表资源无限。
+
+同一任务上次尚未结束时，下一次到期仍可能启动新的采集；重复点击立即运行也会产生独立运行。请根据采集耗时安排频率。
+
+关闭应用主窗口后，已启用的定时触发仍可工作。运行条件是电脑**已开机、当前用户已登录、未休眠**，并且 Chrome 和应用文件可用。采集时 Chrome 会自动打开，程序结束后关闭自己的会话。
+
+错过的计划分钟不会补跑，也不会自动重试失败任务。可从界面立即重跑，或等待下次计划时间。点击「暂停定时运行」停止后续定时触发；已经开始的采集继续完成。修改或删除任务也不取消已经开始的那次采集。
+
+### 查看结果和停止使用
+
+运行记录会展示任务名、状态、执行时的日期区间和错误说明。成功记录可以打开结果，日志可用于排错；成功数据也会出现在原有历史记录中。
+
+界面保留全部活动任务和最近 100 条运行记录，较早的文件仍保存在本机。自动化不会自动清理历史数据和日志。
+
+长期停用、卸载或搬动应用前，请先点击「暂停定时运行」。搬到新位置后再重新启用，避免系统继续引用旧路径。切换到备份分支也不会自动移除已经注册的系统计划任务。
+
+## 如何让 AI 使用
+
+### 方式一：把采集结果交给 AI 分析
+
+这是最直接的方式，不需要给应用配置 AI 密钥。
+
+1. 在应用中手动或自动完成一次采集。
+2. 点击「打开结果文件夹」。
+3. 找到同一次采集对应的两份 JSON，一起交给支持读取 JSON 的 AI。
+4. 告诉 AI 要解决的业务问题、比较的时间范围及已知背景。
+
+文件配对示意：
+
+```text
+results/
+  browser-同一次采集标识.json       查询条件、日期、状态、分页、耗时
+  browser-data-同一次采集标识.json  实际业务指标，商品列表通常在 data.list
 ```
 
-PowerShell 仅用于开发构建。构建后运行 `商品诊断.exe`，界面直接启动，并通过随附 Node 进程采集；不会通过 PowerShell 唤醒应用。
+自动采集的文件标识还包含唯一 ID。按完整后缀配对，不要只按“最新两个文件”选择，因为多任务可能交错完成。两份文件表示一次采集的上下文与数据，不代表有两个商品。
 
-开发构建自动复制本机 Node 到 `runtime/`。自行分发运行时与依赖时保留各自许可证；官方便携包包含对应许可证。
+可以使用下面的提示词：
 
-Mac 开发构建在 macOS 上执行，需要 Node.js 24 和 Xcode 命令行工具（生成应用图标时使用 Swift）：
+```text
+请分析我提供的这对领星商品采集 JSON。
+
+先确认两份文件属于同一次采集，并列出商品标识、国家、店铺、日期范围、
+币种、数据粒度和采集状态；状态或字段不足时说明缺口。
+
+本次问题是：这个商品当前最需要关注哪些经营问题？
+请根据现有数据检查销售、流量、转化、退货、退款、广告和库存，
+按优先级列出发现、所用字段、解释和需要进一步核实的数据。
+
+注意：
+- 缺失字段、null 和空字符串不能当作 0；数字字符串需先正确解析。
+- 退货率与退款率分别解释，不混用。
+- 不同币种不直接汇总金额；父体汇总和 MSKU 明细不重复相加。
+- 汇总数据只说明当前表现；原因判断请标为推测并列出验证方法。
+- 当前文件没有提供的利润、逐日趋势和退货原因，不自行编造。
+```
+
+### 方式二：让本机 AI 助手调用采集命令
+
+具有本机文件和终端权限的 AI 助手，可以在你授权后运行 `browser.js`，随后读取新生成的结果。只有网页聊天权限、无法访问本机目录的 AI，需要由你上传文件，不能凭仓库链接读取你的账号数据。
+
+可给本机助手这样的任务：
+
+```text
+请在本机商品诊断应用目录中，只读采集指定商品的领星产品表现。
+先告诉我本次会使用的商品类型、商品值、国家、店铺和日期口径，
+按我提供的条件调用 browser.js，再读取本次新生成且状态为 ok 的结果对。
+不要自动修改广告、价格、Listing、定时任务或历史文件。
+不要读取并展示或上传 .private 中的登录凭据，也不要开启请求模板保存。
+如登录过期，请让我在应用打开的专用 Chrome 中登录。
+
+商品类型：parent_asin
+商品值：替换为实际父 ASIN
+国家：替换为实际国家
+店铺：替换为实际店铺，或明确全部店铺
+日期：前 7 天，截至昨天
+分析问题：请在这里补充实际问题。
+```
+
+Windows 便携应用目录中的只读命令示例：
+
+```powershell
+.\runtime\node.exe .\browser.js --type parent_asin --value B0ASIN0001 --match exact --country 加拿大 --period prev7
+```
+
+`B0ASIN0001` 是占位符。源码开发环境也可使用已安装的 `node`。CLI 日期别名支持 `prev7`、`prev30`、`recent7`、`recent30`；自动化界面的其他动态日期由调度器换算为 `--from`、`--to`，不要直接将 `lastWeek` 等界面选项传给 `browser.js --period`。
+
+### 跨期对比时要补充什么
+
+将两个时期各自的结果对一起提供，共四份 JSON，并说明要比较的指标。让 AI 先按稳定商品标识、站点／国家、店铺、数据粒度和币种配对，再核查两个区间的长度与是否重叠。
+
+同一日期范围的两次采集是两次快照，不能直接解释为跨期增长趋势。退货发生日期和销量日期也未必对应同一订单群。比较金额时需保持同币种，或明确汇率、换算日期和来源。单个父体汇总可能包含多个款式和 MSKU，不应仅按表格行号匹配。
+
+应用没有内置 AI 分析、消息推送或通用经营预警阈值；定时采集完成后不会自动调用外部模型。需要分析时，将结果提供给 AI，或在自己的授权流程中接入后续处理。
+
+## 文件、隐私与迁移
+
+### 数据保存位置
+
+| 平台 | 数据目录 |
+|---|---|
+| Windows | 应用所在目录；结果在 `results/`，私有状态在 `.private/` |
+| macOS | `~/Library/Application Support/Lingxing Search/` |
+
+自动化在数据目录下保存：
+
+```text
+.private/automation/
+  tasks.json              已保存任务和定时总开关
+  runs/                   每次运行的状态与查询条件快照
+  logs/                   各次采集日志和调度错误日志
+  slots/                  定时触发记录，避免同一时段重复触发
+```
+
+任务中的真实商品、店铺等信息也属于业务资料。上传给 AI 时，按需要提供结果 JSON；不要把整个应用目录或 `.private/` 一起上传。
+
+### 登录与请求模板
+
+普通采集保留必要的登录态和结果，默认不保存完整网络记录或爬虫请求模板。手动浏览器采集开始时会移除旧的请求模板和完整网络记录文件，保留历史报表和登录态；隔离的自动任务不修改这些共用文件。
+
+`--save-template` 或「运行对比.cmd」用于主动保存私有请求模板，其中仍可能包含 `auth-token` 等身份信息；去除 Cookie 不代表已经可以公开。`--diagnostics` 只保存请求路径、方法、状态和结构摘要，不保存请求头、请求正文和原始响应。
+
+公开仓库和发布包只包含源码、运行依赖及合成示例，不包含真实账号、登录配置和业务报表。公开提交使用 dsh-git-guard 和打包白名单，流程见[隐私发布说明](docs/privacy.md)。
+
+### 升级、备份与换电脑
+
+- **原地升级**：先暂停定时运行，等待活动采集结束，再关闭应用。备份后按新版文件清单更新，保留自己的 `results/` 和 `.private/`，完成一次手动验证后再启用定时。
+- **同机备份**：备份中如果包含 `.private/`，应按登录凭据保护；不要上传到公共仓库。
+- **换电脑**：安装对应平台的完整应用，按需迁移 `results/` 中配对的历史文件，在新电脑重新登录。不要复制 Chrome 配置或登录凭据。
+- **迁移任务条件**：可按需要从自己的 `tasks.json` 恢复业务条件，但该文件仍是私有资料；系统计划任务不会随文件迁移，必须在目标电脑重新启用并检查任务。
+- **Windows 与 Mac**：EXE 和 `.app` 不能互相运行，历史 JSON 采用相同格式，可按完整文件对迁移。
+
+## 常见问题
+
+| 问题 | 检查方法 |
+|---|---|
+| 下载后没有自动化页面 | 检查是否仍在使用旧 v1.2.2 Release 包；主分支新功能需要重新构建或等待新版安装包 |
+| 浏览器提示登录 | 在应用打开的专用 Chrome 中登录，再完成一次手动采集 |
+| 自动任务提示没有登录态／登录失效 | 回到采集条件页手动成功采集一次，再立即重跑失败任务 |
+| 查询结果为空 | 核对标识类型、模糊／精确、国家、店铺、日期及账号权限；不要直接认定销量为零 |
+| 店铺匹配不唯一／FNSKU 无法唯一解析 | 填写更明确的店铺或商品标识，缩小查询范围 |
+| 到时间没有运行 | 检查任务启用状态、定时总开关、星期、本机时间、是否休眠和用户是否已登录 |
+| 启用或暂停定时失败 | 查看 `.private/automation/logs/scheduler-error.log`；Windows 还需检查当前用户的计划任务权限 |
+| 并发时电脑变慢或部分失败 | 查看各次日志，减少同时运行的任务或错开时间；程序不会自动限流和重试 |
+| 搬动应用后失效 | 应先在旧位置暂停，再在新位置重新启用；检查系统任务是否仍引用旧路径 |
+| 界面找不到较早运行记录 | 页面显示全部活动任务与最近 100 条，较早文件在本机 `runs/` 和 `logs/` 中 |
+| 取数突然失败 | 查看日志；领星页面、筛选控件或内部请求变化可能需要更新采集代码 |
+| 没有 AI 结论或通知 | 当前只采集和留档，请把配对结果交给 AI 或另行配置后续处理 |
+
+## 源码运行与构建
+
+以下内容供开发者和已获授权的本机 AI 助手使用。所有商品示例均为占位符。
+
+### Windows 构建
+
+需要 Windows x64、Node.js 24、npm 和 .NET Framework C# 编译器。CI 固定使用 Node `24.21.0`，本地构建会将当前 Node 复制到 `runtime/`。
+
+```powershell
+git clone --branch main https://github.com/impartOvo/win-lingxing-search.git
+cd win-lingxing-search
+npm ci --omit=dev
+npm test
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File desktop/build-exe.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File desktop/test-exe.ps1 -Mode self-test
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File desktop/test-exe.ps1 -Mode smoke-test
+```
+
+构建后双击 `商品诊断.exe`。应用界面直接运行；PowerShell 用于开发构建和 Windows 定时注册，不负责每次唤醒界面。开发构建会创建应用快捷方式，CI 中跳过这一步。
+
+如需制作便携包：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File desktop/package-windows.ps1
+```
+
+打包脚本按白名单复制文件，生成 ZIP 和校验值，再对解压后的应用自检。分发时应保留完整依赖及其许可证，不能只复制 EXE。
+
+### Mac 构建
+
+在 macOS 上安装 Node.js 24、npm 和 Xcode 命令行工具，再执行：
 
 ```sh
 git clone --branch mac https://github.com/impartOvo/win-lingxing-search.git
 cd win-lingxing-search
 npm ci
-npm test
 bash mac/make-icon.sh
 npm run mac:dev
 npm run mac:pack -- --arm64 --dir
-# Intel 构建使用 --x64
+# Intel 构建将 --arm64 改为 --x64
 ```
 
-GitHub Actions 的 `Build macOS` 工作流分别在原生 ARM64 和 Intel 构建机上打包，并在通过 Chrome 连接、签名完整性、应用与 IPC、自检及 ZIP 解压后启动检查后生成构建产物。普通提交只构建；推送与 package.json 一致的版本标签后，发布工作流等待 Windows 和两个 Mac 架构全部通过，再发布到同一 Release。构建机没有领星账号，Mac 上的真实账号取数需要使用者首次登录后验证。
+运行测试或正式发布前，还应在相应 Mac 架构和真实账号环境中验证。新版自动化目前尚无 Mac 运行验证结论。
 
-## 命令行与对比实验
+### 只读命令行采集
 
 ```powershell
-node browser.js --type parent_asin --value B0ASIN0001 --match exact --country 加拿大 --from 2025-01-01 --to 2025-01-30 --save-template
-node browser.js --type name --value "示例品名" --match fuzzy --country 德国 --period prev30
+node browser.js --type parent_asin --value B0ASIN0001 --match exact --country 加拿大 --period prev30
+node browser.js --type name --value "示例品名" --match fuzzy --country 德国 --shop "示例店铺" --from 2025-01-01 --to 2025-01-30
+```
+
+日期参数要么使用 `--period`，要么同时使用 `--from`、`--to`，不能混用。桌面应用会管理对应进程和日志；命令行适合明确授权后的批量处理或排错。
+
+### 爬虫对比实验
+
+```powershell
+node browser.js --type parent_asin --value B0ASIN0001 --match exact --country 加拿大 --period prev30 --save-template
 node crawler.js
 ```
 
-示例标识为占位符，使用时替换为自己的商品。只有显式传入 `--save-template` 或使用「运行对比.cmd」才保存私有模板；普通界面采集不保存模板。`crawler.js` 复用浏览器已观察到的只读请求模板，用于同条件取数对比。登录失效时先运行浏览器版。两个脚本均保存独立结果，直连版不自动进入桌面结果视图。
+`crawler.js` 复用刚保存的私有只读请求模板，用于同条件取数对比。它不是自动化调度的默认执行方式；模板会过期，登录失效时应先重新手动登录。对比输出单独保存，不自动进入桌面结果视图。
 
-## Mac 实际采集回归
+### Mac 实际采集回归入口
 
-关闭已运行的应用，再在 Mac 终端执行一次（将占位商品替换为实际商品）：
+关闭正在运行的应用，替换占位商品后，在 Mac 终端执行：
 
 ```sh
-"/Applications/Lingxing Search.app/Contents/MacOS/Lingxing Search" --collect-once --type parent_asin --value B0ASIN0001 --country 加拿大 --from 2025-01-01 --to 2025-01-30 --test-report "$HOME/Desktop/lingxing-collection-test.json"
+"/Applications/Lingxing Search.app/Contents/MacOS/Lingxing Search" --collect-once --type parent_asin --value B0ASIN0001 --country 加拿大 --period prev30 --test-report "$HOME/Desktop/lingxing-collection-test.json"
 ```
 
-该入口使用正常应用的数据目录和同一采集服务；首次登录仍在专用 Chrome 完成。采集结束后自动退出，报告包含成功/失败、结果文件路径和记录数；退出码 0 表示成功。报告和业务结果只保存在本机，不上传 CI。可用 `--period prev30` 替代两个日期。GitHub 构建机的合成数据测试不能替代实际账号验证。
+该命令使用正常应用数据目录，采集后退出并写入成功／失败报告。退出码 `0` 表示成功，非零表示失败；报告和业务数据留在本机。首次登录仍需在专用 Chrome 中完成。
 
-## 数据与迁移
+### 版本与发布流程
 
-- `results/browser-时间.json`：查询条件、范围、采集状态、行数和耗时。
-- `results/browser-data-时间.json`：领星返回的实际指标。
-- `.private/`：必要登录状态、浏览器配置与本地日志，仅在本机生成。默认不保存完整网络记录；`--diagnostics` 仅保存不含请求头、请求体及原始响应的摘要。启用爬虫模板时仍包含身份令牌，不能公开或随包迁移。
-- 升级后首次采集会清理旧的请求模板和完整网络记录，不影响已有报表及登录态。
-- 同一次采集有两个 JSON 文件，不表示有两个商品。父体行还可能包含多个款式与多个 MSKU。
-- 支持读 JSON 的 AI 可分析上传的结果；分析时同时提供查询记录和数据文件。
-- 迁移 Windows 电脑：复制完整应用目录，删除目标副本整个 `.private/`，首次采集重新登录。保留 `results/` 可保留历史；新电脑重新创建快捷方式。
-- Windows 的 EXE 与 Mac 的 .app 分别打包，不能互相直接运行；两端保存的 JSON 结果格式相同。
+`package.json` 是应用版本号来源。正式升级版本时，只修改应用版本和锁文件根项目版本，保持第三方依赖锁定；不要全局替换锁文件中的版本字符串。
 
-不要公开 `.private/` 或真实业务结果。源码仓库与发布包不包含账户、登录信息、真实报表、原桌面快捷方式或业务截图。`examples/` 是完全合成的数据。
+Windows 工作流在 `main` 推送、PR 和手动触发时构建。Mac 工作流支持手动触发，并被 Release 工作流复用。推送与应用版本一致的版本标签后，Release 工作流等待 Windows x64、Mac ARM64 和 Mac x64 全部检查通过，再校验压缩包并创建 Release。普通源码推送不等于发布新安装包。
 
-## 文件结构
+## 验证情况与项目结构
 
-| 文件 | 用途 |
+### 当前验证范围
+
+- v1.2.2 正式版已有 Windows 和两种 Mac 架构的构建、自检及发布检查记录；这些不代表新增自动化已在 Mac 实测。
+- 新增重置和自动化功能已通过 15 项 Node 测试及 Windows 应用自检，覆盖日期计算、任务保存／编辑／删除、定时选择和失败状态等。
+- Windows 临时系统计划任务已完成实际分钟触发、注册和移除验证。
+- 两项真实领星采集已验证同时运行、分别成功、结果不覆盖且共用登录文件未被改写；单日日期范围也已实测。
+- 40 项到期任务的测试使用合成调度数据，验证程序未设置并发数量限制，不能据此声称已完成 40 项真实浏览器采集。
+- 本轮未运行 Mac 新功能测试；Mac 真实账号采集及系统调度仍需在使用者的 Mac 上验证。
+
+### 主要文件
+
+| 路径 | 用途 |
 |---|---|
-| `desktop/App.cs` | 原生 Windows 界面控制和采集进程管理 |
-| `desktop/ReportData.cs` | JSON 读取、字段与展示模型 |
-| `desktop/NativeChecks.cs` | 参数、合成数据、模块连接自检 |
-| `launcher.xaml` | 深色 WPF 界面，构建时嵌入 EXE |
-| `browser.js` | Playwright 复用登录态、筛选报表、读取响应和翻页 |
-| `crawler.js` | 复用本地已捕获的只读请求进行对比 |
-| `shared.js` | 参数校验与公共取数工具 |
-| `mac/main.cjs`、`mac/preload.cjs` | Mac 主进程、采集服务与隔离的界面桥接 |
-| `mac/ui/` | Mac 深色界面 |
-| `mac/reports.cjs` | Mac 历史结果与参数处理 |
-| `launcher.ps1`、`ui-data.ps1` | 早期界面源码参考，EXE 不依赖它们 |
+| `desktop/App.cs`、`desktop/Automation.cs` | Windows 手动采集、重置和自动化界面控制 |
+| `desktop/ReportData.cs`、`desktop/NativeChecks.cs` | 结果读取、展示模型与原生自检 |
+| `launcher.xaml` | Windows 深色界面，构建时嵌入 EXE |
+| `browser.js` | Playwright 登录态读取、页面筛选、响应采集和分页 |
+| `crawler.js`、`shared.js` | 只读请求对比、参数校验和公共逻辑 |
+| `automation/core.cjs` | 任务配置、动态日期、触发去重及状态汇总 |
+| `automation/dispatch.cjs`、`automation/worker.cjs` | 发起独立采集进程、保存每次运行状态 |
+| `automation/cli.cjs` | 桌面界面与系统定时使用的自动化操作入口 |
+| `automation/platform.cjs`、`automation/register-windows.ps1` | 注册／移除 Windows 计划任务和 Mac LaunchAgent |
+| `mac/main.cjs`、`mac/preload.cjs`、`mac/ui/` | Mac 主进程、隔离桥接与界面 |
+| `mac/collector-worker.cjs`、`mac/reports.cjs` | Mac 手动采集进程与历史结果处理 |
+| `countries.json` | 两端共用的国家候选 |
+| `tests/`、`examples/` | 测试和合成数据示例 |
+| `launcher.ps1`、`ui-data.ps1` | 早期界面参考，当前 EXE 不依赖它们 |
 
-[会话整理](docs/session-summary.md) · [字段说明](docs/data-format.md) · [隐私发布流程](docs/privacy.md)
+相关文档：[自动化说明](docs/automation.md) · [数据格式](docs/data-format.md) · [隐私发布流程](docs/privacy.md) · [Mac 发布说明](docs/mac-release-notes.md) · [历史会话整理](docs/session-summary.md)。
 
 ## 许可证
 
-本项目原创代码采用 MIT。Node.js、Playwright 等第三方组件按各自许可证分发，见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+项目原创代码采用 [MIT](LICENSE)。Node.js、Playwright、Electron 等第三方组件遵循各自许可证，见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
