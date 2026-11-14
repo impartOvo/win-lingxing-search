@@ -172,6 +172,40 @@ async function runSmoke() {
     document.querySelector('#reset-page').click();
     if (document.querySelector('#value').value || document.querySelector('#from').value || !document.querySelector('#result-content').hidden || document.querySelector('#results').hidden === false) throw new Error('页面重置失败');
     if (document.querySelector('#empty').hidden) throw new Error('空结果提示未保留');
+    const waitForAutomation = async (check, message) => {
+      const deadline = Date.now() + 15000;
+      while (!check()) {
+        if (Date.now() > deadline) throw new Error(message);
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+    };
+    document.querySelector('[data-page="automation"]').click();
+    await waitForAutomation(() => !document.querySelector('#automation').hidden && automationState && !automationBusy && !automationRefreshing, '自动化页面初始化失败');
+    document.querySelector('#a-name').value = '示例自动化任务·中文';
+    document.querySelector('#a-type').value = 'name';
+    document.querySelector('#a-value').value = '示例中文商品';
+    document.querySelector('#a-country').value = '加拿大';
+    document.querySelector('#a-shop').value = '示例中文店铺';
+    document.querySelector('#a-period').value = 'yesterday';
+    document.querySelector('#a-enabled').checked = false;
+    document.querySelector('#a-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await waitForAutomation(() => automationState.tasks.length === 1 && !automationBusy, '自动化任务保存失败');
+    const task = automationState.tasks[0];
+    if (task.country !== '加拿大' || task.value !== '示例中文商品' || task.type !== '品名' || task.shop !== '示例中文店铺') throw new Error('自动化中文条件损坏');
+    const firstRow = document.querySelector('#a-tasks tr');
+    const refresh = automationRequest();
+    if (document.querySelector('#a-save').disabled || document.querySelector('#a-schedule').disabled || document.querySelector('#a-run-all').disabled) throw new Error('后台刷新禁用了按钮');
+    await refresh;
+    if (document.querySelector('#a-tasks tr') !== firstRow) throw new Error('后台刷新重建了未变化的任务表');
+    await automationRequest({ action: 'run', ids: [task.id] });
+    await waitForAutomation(() => {
+      const run = automationState.runs.find(run => run.taskId === task.id);
+      return run && run.status === 'error';
+    }, '独立自动化采集进程未报告预期失败');
+    const run = automationState.runs.find(run => run.taskId === task.id);
+    if (!run.error.includes('手动完成一次采集')) throw new Error('自动化未生成缺少登录态的提示：' + run.error);
+    await automationRequest({ action: 'delete-task', id: task.id });
+    if (automationState.tasks.length) throw new Error('自动化任务删除失败');
     return true;
   })()`);
   finishSmoke();

@@ -4,7 +4,7 @@
 
 ## 2026-11-14 · 自动化任务乱码与刷新问题
 
-修复提交：[e863435](https://github.com/impartOvo/win-lingxing-search/commit/e863435cf8e86dfcab0283af7163a3062382b46e)。修复已同步至 `main`、`mac`，尚未单独发布新的正式安装包；应用版本字段仍为 `1.2.2`。使用时需核对安装包是否实际包含该提交。
+修复提交：[e863435](https://github.com/impartOvo/win-lingxing-search/commit/e863435cf8e86dfcab0283af7163a3062382b46e)。修复已同步至 `main`、`mac`，并纳入 [v1.3.0 发布版本](https://github.com/impartOvo/win-lingxing-search/releases/tag/v1.3.0)。修复当时应用版本字段仍为 `1.2.2`，因此旧版下载包不能仅凭相同版本字段判断是否包含修复；安装时请使用 v1.3.0。
 
 ### BUG-20261114-01：保存、编辑任务后中文乱码
 
@@ -94,6 +94,8 @@ Windows 自检检查实际选中项展示区域中的文本为“昨天”，同
 | 定时总开关 | 保留原状态，实测通过立即运行触发 |
 | Mac 刷新源码 | 已同步，完成语法检查；未运行 Mac 应用测试 |
 | 正式 Release | 本次没有创建新的正式安装包或版本标签 |
+
+上表记录修复当时的验证范围。后续 v1.3.0 发布流程增加了 Mac 双架构自动化界面及独立任务进程的云端自检，并更新三平台安装包；仍不将云端合成测试视为 Mac 真实账号采集或本机定时验证。
 
 核心修改涉及 `desktop/Automation.cs`、`launcher.xaml`、`mac/ui/automation.js`；使用说明同步更新。实际测试报告保存在本机私有目录，仅将不含业务内容的验证结论写入本文。
 

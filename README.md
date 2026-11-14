@@ -40,12 +40,12 @@ Windows 使用原生 C# / WPF，macOS 使用 Electron；两端采用深色背景
 
 | 项目 | 当前状态 |
 |---|---|
-| 最新正式 Release | [v1.2.2](https://github.com/impartOvo/win-lingxing-search/releases/tag/v1.2.2) |
-| 源码中的应用版本号 | `package.json` 仍为 `1.2.2`；Windows 文件版本由构建脚本生成 |
-| 当前主分支新增功能 | 重置页面、定时自动采集、动态日期范围、多任务并发、自动化运行记录 |
-| 新功能的安装包状态 | 上述新增功能尚未发布为新的正式 Release；旧 v1.2.2 下载包不包含这些新增功能 |
+| 当前发布版本 | [v1.3.0](https://github.com/impartOvo/win-lingxing-search/releases/tag/v1.3.0) |
+| 源码中的应用版本号 | `package.json` 为 `1.3.0`；Windows 文件版本由构建脚本生成为 `1.3.0.0` |
+| v1.3.0 功能 | 重置页面、定时自动采集、动态日期范围、多任务并发、自动化运行记录，以及中文编码和刷新修复 |
+| 安装包 | Windows x64、Mac ARM64、Mac x64；构建及检查通过后由 Release 工作流统一发布 |
 
-**需要自动化功能时，请使用当前源码构建的应用，或等待包含该功能的新 Release。只下载旧 v1.2.2 ZIP 不会得到自动化页面。**
+**需要自动化功能时，请下载 v1.3.0 安装包。旧 v1.2.2 ZIP 不包含自动化页面。**
 
 | 分支 | 用途 |
 |---|---|
@@ -89,7 +89,7 @@ Windows 使用原生 C# / WPF，macOS 使用 Electron；两端采用深色背景
 
 运行条件：Windows x64、.NET Framework 4.8 / 4.8.1、Google Chrome。
 
-1. 从 [Release 页面](https://github.com/impartOvo/win-lingxing-search/releases/tag/v1.2.2) 下载 Windows x64 ZIP，或使用当前源码自行构建。
+1. 从 [v1.3.0 Release 页面](https://github.com/impartOvo/win-lingxing-search/releases/tag/v1.3.0) 下载 [Windows x64 ZIP](https://github.com/impartOvo/win-lingxing-search/releases/download/v1.3.0/lingxing-search-1.3.0-windows-x64.zip)，或使用当前源码自行构建。
 2. 将整个目录解压到当前用户有写入权限、准备长期保留的位置。
 3. 双击 `商品诊断.exe`。便携包包含 Node 运行时和 Playwright 依赖，请保留完整目录。
 4. 打开「采集条件」，先用一个已知商品做一次手动采集。
@@ -102,16 +102,16 @@ Windows 使用原生 C# / WPF，macOS 使用 Electron；两端采用深色背景
 
 运行条件：macOS 13 Ventura 或以上、Google Chrome。安装包内置运行时，无需另外安装 Node、.NET 或 Python。
 
-| 电脑类型 | 已发布的 v1.2.2 下载包 |
+| 电脑类型 | v1.3.0 下载包 |
 |---|---|
-| Apple 芯片（M 系列，ARM64） | [Apple 芯片版](https://github.com/impartOvo/win-lingxing-search/releases/download/v1.2.2/lingxing-search-1.2.2-mac-arm64.zip) |
-| Intel（x64） | [Intel 版](https://github.com/impartOvo/win-lingxing-search/releases/download/v1.2.2/lingxing-search-1.2.2-mac-x64.zip) |
+| Apple 芯片（M 系列，ARM64） | [Apple 芯片版](https://github.com/impartOvo/win-lingxing-search/releases/download/v1.3.0/lingxing-search-1.3.0-mac-arm64.zip) |
+| Intel（x64） | [Intel 版](https://github.com/impartOvo/win-lingxing-search/releases/download/v1.3.0/lingxing-search-1.3.0-mac-x64.zip) |
 
 解压后将 `Lingxing Search.app` 放入「应用程序」或其他固定位置，再打开应用、填写条件并完成首次登录。
 
 当前正式 Mac 包采用 ad-hoc 临时签名，未经过 Apple Developer ID 签名或公证。首次打开可能需要在「系统设置 → 隐私与安全性」中确认应用，具体见 [Mac 发布说明](docs/mac-release-notes.md)。
 
-Mac 数据目录为 `~/Library/Application Support/Lingxing Search/`，可通过侧栏「打开数据目录」查看。**当前新增自动化功能尚未完成 Mac 运行验证**，请同时参考下方验证情况。
+Mac 数据目录为 `~/Library/Application Support/Lingxing Search/`，可通过侧栏「打开数据目录」查看。发布流程会执行 Mac 应用和自动化界面的合成数据自检；**Mac 真实账号采集及本机系统定时仍需在实际电脑验证**，请同时参考下方验证情况。
 
 ## 日常操作
 
@@ -144,7 +144,7 @@ Mac 数据目录为 `~/Library/Application Support/Lingxing Search/`，可通过
 
 ## 自动化任务教程
 
-以下操作适用于包含自动化功能的当前源码构建版本。详细机制见[自动化说明](docs/automation.md)。
+以下操作适用于 v1.3.0 及包含自动化功能的源码构建版本。详细机制见[自动化说明](docs/automation.md)。
 
 ### 第一步：先完成一次手动采集
 
@@ -344,7 +344,7 @@ Windows 便携应用目录中的只读命令示例：
 
 | 问题 | 检查方法 |
 |---|---|
-| 下载后没有自动化页面 | 检查是否仍在使用旧 v1.2.2 Release 包；主分支新功能需要重新构建或等待新版安装包 |
+| 下载后没有自动化页面 | 检查是否仍在使用旧 v1.2.2 Release 包，改用 v1.3.0 安装包 |
 | 浏览器提示登录 | 在应用打开的专用 Chrome 中登录，再完成一次手动采集 |
 | 自动任务提示没有登录态／登录失效 | 回到采集条件页手动成功采集一次，再立即重跑失败任务 |
 | 保存或编辑后国家、品名出现乱码 | 更新包含 UTF-8 输入修复的应用，重新选择受损的国家或填写原查询条件后保存；旧版已写坏的字段不会仅靠显示刷新恢复 |
@@ -445,7 +445,7 @@ Windows 工作流在 `main` 推送、PR 和手动触发时构建。Mac 工作流
 - Windows 临时系统计划任务已完成实际分钟触发、注册和移除验证。
 - 两项真实领星采集已验证同时运行、分别成功、结果不覆盖且共用登录文件未被改写；单日日期范围也已实测。
 - 40 项到期任务的测试使用合成调度数据，验证程序未设置并发数量限制，不能据此声称已完成 40 项真实浏览器采集。
-- 本轮未运行 Mac 新功能测试；Mac 真实账号采集及系统调度仍需在使用者的 Mac 上验证。
+- Mac 发布构建在两种架构执行应用自检，覆盖自动化页面、中文任务保存与删除、后台刷新及独立采集进程的缺少登录态提示。Mac 真实账号采集及系统调度仍需在使用者的 Mac 上验证。
 
 ### 主要文件
 
