@@ -32,15 +32,20 @@ foreach ($size in $sizes) {
     $drawing = [System.Drawing.Graphics]::FromImage($bitmap)
     $drawing.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
     $drawing.Clear([System.Drawing.Color]::Transparent)
-    $fill = New-Object System.Drawing.SolidBrush ([System.Drawing.ColorTranslator]::FromHtml('#4B7CF0'))
+    $fill = New-Object System.Drawing.SolidBrush ([System.Drawing.ColorTranslator]::FromHtml('#16181B'))
     $drawing.FillEllipse($fill, 0, 0, $size-1, $size-1)
-    $pen = New-Object System.Drawing.Pen ([System.Drawing.Color]::White), ([single]($size/20))
-    $drawing.DrawLines($pen, [System.Drawing.PointF[]]@([System.Drawing.PointF]::new($size*.27,$size*.27),[System.Drawing.PointF]::new($size*.27,$size*.73),[System.Drawing.PointF]::new($size*.75,$size*.73)))
-    for ($index=0; $index -lt 3; $index++) { $x=$size*(.39+.14*$index); $drawing.DrawLine($pen,[single]$x,[single]($size*.64),[single]$x,[single]($size*(.52-.13*$index))) }
+    $pulse = New-Object System.Drawing.SolidBrush ([System.Drawing.ColorTranslator]::FromHtml('#63D8E6'))
+    $pen = New-Object System.Drawing.Pen ([System.Drawing.ColorTranslator]::FromHtml('#63D8E6')), ([single]($size/32))
+    $drawing.TranslateTransform($size/2, $size/2)
+    $drawing.RotateTransform(-30)
+    $drawing.DrawEllipse($pen, [single](-$size*.34), [single](-$size*.19), [single]($size*.68), [single]($size*.38))
+    $drawing.ResetTransform()
+    $points = @(@(.50,.12),@(.56,.44),@(.88,.50),@(.56,.56),@(.50,.88),@(.44,.56),@(.12,.50),@(.44,.44)) | ForEach-Object { [System.Drawing.PointF]::new($size*$_[0],$size*$_[1]) }
+    $drawing.FillPolygon($pulse, [System.Drawing.PointF[]]$points)
     $buffer = New-Object System.IO.MemoryStream
     $bitmap.Save($buffer,[System.Drawing.Imaging.ImageFormat]::Png)
     $pngs += ,$buffer.ToArray()
-    $buffer.Dispose(); $pen.Dispose(); $fill.Dispose(); $drawing.Dispose(); $bitmap.Dispose()
+    $buffer.Dispose(); $pen.Dispose(); $pulse.Dispose(); $fill.Dispose(); $drawing.Dispose(); $bitmap.Dispose()
 }
 $stream = [System.IO.File]::Create($iconPath)
 $writer = New-Object System.IO.BinaryWriter $stream
@@ -57,22 +62,22 @@ try {
 } finally { $writer.Dispose(); $stream.Dispose() }
 
 $references = @('System.dll','System.Core.dll','System.Web.Extensions.dll','System.Xaml.dll','WPF\PresentationFramework.dll','WPF\PresentationCore.dll','WPF\WindowsBase.dll')
-$arguments = @('/nologo','/target:winexe','/platform:x64','/optimize+','/codepage:65001',('/out:'+(Join-Path $appRoot '商品诊断.exe')),('/win32manifest:'+(Join-Path $PSScriptRoot 'app.manifest')),('/win32icon:'+$iconPath),('/resource:'+(Join-Path $appRoot 'launcher.xaml')+',ProductDiagnosis.launcher.xaml'),('/resource:'+$iconPath+',ProductDiagnosis.app.ico'),('/resource:'+(Join-Path $appRoot 'countries.json')+',ProductDiagnosis.countries.json'))
+$arguments = @('/nologo','/target:winexe','/platform:x64','/optimize+','/codepage:65001',('/out:'+(Join-Path $appRoot 'PulsarFetch.exe')),('/win32manifest:'+(Join-Path $PSScriptRoot 'app.manifest')),('/win32icon:'+$iconPath),('/resource:'+(Join-Path $appRoot 'launcher.xaml')+',ProductDiagnosis.launcher.xaml'),('/resource:'+$iconPath+',ProductDiagnosis.app.ico'),('/resource:'+(Join-Path $appRoot 'countries.json')+',ProductDiagnosis.countries.json'))
 foreach ($reference in $references) { $path=Join-Path $framework $reference; if(-not (Test-Path -LiteralPath $path)){throw ('缺少程序集：'+$path)}; $arguments += '/reference:'+$path }
 $arguments += @(Get-ChildItem -LiteralPath $PSScriptRoot -Filter '*.cs' -File | ForEach-Object {$_.FullName})
 & $compiler @arguments
 if ($LASTEXITCODE -ne 0) { throw 'EXE 编译失败。' }
 
 $config = '<?xml version="1.0" encoding="utf-8"?><configuration><startup><supportedRuntime version="v4.0" sku=".NETFramework,Version=v4.8"/></startup><runtime><AppContextSwitchOverrides value="Switch.System.Windows.DoNotScaleForDpiChanges=false"/></runtime></configuration>'
-[System.IO.File]::WriteAllText((Join-Path $appRoot '商品诊断.exe.config'),$config,[System.Text.UTF8Encoding]::new($false))
+[System.IO.File]::WriteAllText((Join-Path $appRoot 'PulsarFetch.exe.config'),$config,[System.Text.UTF8Encoding]::new($false))
 if ($env:CI -ne 'true') {
 $shell = New-Object -ComObject WScript.Shell
-$shortcut = $shell.CreateShortcut((Join-Path $appRoot '商品诊断.lnk'))
-$shortcut.TargetPath = Join-Path $appRoot '商品诊断.exe'
+$shortcut = $shell.CreateShortcut((Join-Path $appRoot 'PulsarFetch.lnk'))
+$shortcut.TargetPath = Join-Path $appRoot 'PulsarFetch.exe'
 $shortcut.Arguments = ''
 $shortcut.WorkingDirectory = $appRoot
-$shortcut.IconLocation = (Join-Path $appRoot '商品诊断.exe')+',0'
-$shortcut.Description = '商品诊断 · 领星数据工作台'
+$shortcut.IconLocation = (Join-Path $appRoot 'PulsarFetch.exe')+',0'
+$shortcut.Description = 'PulsarFetch · 商品数据采集'
 $shortcut.Save()
 }
-Write-Output ('Built: '+(Join-Path $appRoot '商品诊断.exe'))
+Write-Output ('Built: '+(Join-Path $appRoot 'PulsarFetch.exe'))

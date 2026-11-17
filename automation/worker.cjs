@@ -8,7 +8,6 @@ async function main() {
   const file = path.join(core.paths(DATA_ROOT).runs, id + '.json');
   let run = core.readJson(file);
   if (!run) throw new Error('找不到任务运行记录');
-  // The dispatcher writes the PID before the worker updates the same record.
   const deadline = Date.now() + 5000;
   while (!run.pid && Date.now() < deadline) {
     await new Promise(resolve => setTimeout(resolve, 10)); run = core.readJson(file);
@@ -20,9 +19,9 @@ async function main() {
   process.env.LINGXING_AUTOMATION_TASK_ID = run.taskId;
   process.env.LINGXING_AUTOMATION_RUN_ID = run.id;
   try {
-    const { capture } = require('../browser');
+    const { capture } = require('../collector.cjs');
     const { validate } = require('../shared');
-    const input = Object.fromEntries(['type', 'value', 'match', 'country', 'shop'].map(k => [k, run.task[k]]));
+    const input = Object.fromEntries(['type', 'value', 'match', 'country', 'shop', 'source', 'currency'].map(k => [k, run.task[k]]));
     const result = await capture(validate({ ...input, ...run.dates }));
     run.status = 'ok'; run.resultName = path.basename(result);
   } catch (error) {

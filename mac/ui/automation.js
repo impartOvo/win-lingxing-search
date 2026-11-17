@@ -1,5 +1,5 @@
 'use strict';
-titles.automation = ['自动化任务', '按星期和时间自动采集，多项任务同时运行'];
+titles.automation = ['采集任务', '让重复查询，按计划完成。'];
 let automationState, automationId = null, automationBusy = false;
 let automationRefreshing = false, automationRevision = 0, automationTasksJSON, automationRunsJSON;
 const automationPeriods = { today: '今天', yesterday: '昨天', recent7: '近 7 天（含今天）', prev7: '前 7 天（截至昨天）', thisWeek: '本周（周一至今天）', lastWeek: '上周（周一至周日）', recent30: '近 30 天（含今天）', prev30: '前 30 天（截至昨天）', thisMonth: '本月（1 日至今天）', lastMonth: '上月（完整自然月）', custom: '固定日期区间' };
@@ -14,6 +14,7 @@ function automationButton(cell, label, action) { const button = document.createE
 function automationFill(task) {
   automationId = task?.id || null;
   $('a-form').reset(); set('a-editor-heading', task ? '编辑任务' : '新建任务');
+  $('a-source').value = task?.source || 'browser'; $('a-currency').value = task?.currency || '';
   for (const key of ['name', 'value', 'country', 'shop', 'from', 'to']) $(`a-${key}`).value = task?.[key] || '';
   const types = { ASIN: 'asin', 父ASIN: 'parent_asin', SKU: 'sku', MSKU: 'msku', FNSKU: 'fnsku', SPU: 'spu', 品名: 'name' };
   $('a-type').value = types[task?.type] || 'asin'; $('a-match').value = ['exact', '精确'].includes(task?.match) ? 'exact' : 'fuzzy';
@@ -26,24 +27,14 @@ function automationRender(state) {
   set('a-status', `${state.enabled ? '定时运行已启用' : '定时已暂停'} · 当前运行 ${state.running} 项`);
   set('a-schedule', state.enabled ? '暂停定时运行' : '启用定时运行');
   const tasksJSON = JSON.stringify(state.tasks), runsJSON = JSON.stringify(state.runs);
-  if (automationTasksJSON !== tasksJSON) {
-    $('a-tasks').replaceChildren();
-    for (const task of state.tasks) {
-      const row = automationCells($('a-tasks'), [task.name, task.enabled ? '启用' : '停用', [task.value, task.country || '全部国家', task.shop || '全部店铺'].join(' · '), task.periodLabel, task.scheduleLabel, automationTime(task.nextAt), automationLabel(task.latest?.status)]);
-      const cell = document.createElement('td'); row.append(cell);
-      automationButton(cell, '编辑', () => { automationFill(task); $('a-form').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
-      automationButton(cell, '立即运行', () => automationRequest({ action: 'run', ids: [task.id] }));
-      automationButton(cell, '删除', async () => { await automationRequest({ action: 'delete-task', id: task.id }); if (automationId === task.id) automationFill(); });
-    }
-    automationTasksJSON = tasksJSON;
-  }
+  renderTaskWorkbench(state);
   if (automationRunsJSON !== runsJSON) {
     $('a-runs').replaceChildren();
     for (const run of state.runs) {
       const row = automationCells($('a-runs'), [run.taskName, automationLabel(run.status), automationTime(run.createdAt), `${run.dates.from} — ${run.dates.to}`, run.error || (run.trigger === 'schedule' ? '定时触发' : '手动触发')]);
       const cell = document.createElement('td'); row.append(cell);
       if (run.status === 'ok') automationButton(cell, '查看结果', async () => renderResult(await api.readResult(run.resultName)));
-      automationButton(cell, '日志', () => api.automationLog(run.id));
+      automationButton(cell, '日志', () => showAutomationLog(run.id));
     }
     automationRunsJSON = runsJSON;
   }
@@ -76,7 +67,8 @@ $('a-schedule').onclick = guarded(() => automationRequest({ action: 'schedule', 
 $('a-run-all').onclick = guarded(() => automationRequest({ action: 'run' }));
 $('a-form').onsubmit = event => {
   event.preventDefault();
-  const task = Object.fromEntries(['name', 'type', 'value', 'match', 'country', 'shop', 'period', 'from', 'to', 'time'].map(key => [key, $(`a-${key}`).value]));
+  const task = Object.fromEntries(['name', 'type', 'value', 'match', 'country', 'shop', 'period', 'from', 'to', 'time', 'source', 'currency'].map(key => [key, $(`a-${key}`).value]));
+  task.currency = task.currency.trim().toUpperCase();
   task.id = automationId || crypto.randomUUID();
   task.enabled = $('a-enabled').checked;
   task.days = [...$('a-form').querySelectorAll('[name=weekday]:checked')].map(node => Number(node.value));
@@ -84,11 +76,11 @@ $('a-form').onsubmit = event => {
     await automationRequest({ action: 'save-task', task });
     // Keep editing the saved task, including a newly assigned ID.
     const saved = automationState.tasks.find(t => t.id === task.id);
-    if (saved) automationFill(saved);
+    if (saved) { automationFill(saved); selectedTaskId = saved.id; taskInspector(); }
   })();
 };
 $('a-use-current').onclick = () => {
-  for (const key of ['type', 'value', 'match', 'country', 'shop', 'from', 'to']) $(`a-${key}`).value = $(key).value;
+  for (const key of ['type', 'value', 'match', 'country', 'shop', 'from', 'to', 'source', 'currency']) $(`a-${key}`).value = $(key).value;
   if ($('from').value && $('to').value) { $('a-period').value = 'custom'; $('a-fixed').hidden = false; }
 };
 document.querySelector('[data-page=automation]').addEventListener('click', guarded(() => automationRequest()));

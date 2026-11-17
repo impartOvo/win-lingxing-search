@@ -14,7 +14,9 @@ function launch(dataRoot, task, trigger, now = new Date()) {
   fs.mkdirSync(p.logs, { recursive: true, mode: 0o700 });
   const log = fs.openSync(path.join(p.logs, id + '.log'), 'a', 0o600);
   try {
-    const child = spawn(process.execPath, [path.join(__dirname, 'worker.cjs'), id], {
+    const worker = path.join(__dirname, 'worker.cjs');
+    if (!fs.existsSync(worker)) throw new Error('采集入口 worker.cjs 缺失，请修复程序文件并检查系统拦截记录。');
+    const child = spawn(process.execPath, [worker, id], {
       cwd: path.join(__dirname, '..'), env: runtimeEnv(dataRoot), detached: true, windowsHide: true, stdio: ['ignore', log, log]
     });
     if (!child.pid) { child.on('error', () => {}); throw new Error('无法启动采集进程'); }

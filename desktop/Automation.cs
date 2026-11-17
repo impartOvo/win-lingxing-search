@@ -42,13 +42,15 @@ namespace ProductDiagnosis
         private void WireAutomationEvents()
         {
             Click("AutoRefreshButton", RefreshAutomation);
-            Click("AutoNewButton", () => { NewAutomationTask(); Get<FrameworkElement>("AutoEditorCard").BringIntoView(); });
+            Click("AutoNewButton", () => { NewAutomationTask(); RevealAutomationEditor(); });
             Click("AutoSaveButton", () => AutomationAction(new { action = "save-task", task = AutomationEditorTask() }));
             Click("AutoScheduleButton", () => AutomationAction(new { action = "schedule", enabled = !scheduleEnabled }));
             Click("AutoRunAllButton", () => AutomationAction(new { action = "run" }));
             Click("AutoRunButton", () => { var selected = SelectedAutomationTask(); if (selected != null) AutomationAction(new { action = "run", ids = new[] { selected.Id } }); });
             Click("AutoDeleteButton", () => { var selected = SelectedAutomationTask(); if (selected != null) { AutomationAction(new { action = "delete-task", id = selected.Id }); NewAutomationTask(); } });
             Click("AutoUseCurrentButton", () => {
+                Get<ComboBox>("AutoSourceBox").SelectedIndex = Get<ComboBox>("SourceBox").SelectedIndex;
+                Get<ComboBox>("AutoCurrencyBox").Text = Get<ComboBox>("CurrencyBox").Text;
                 Get<ComboBox>("AutoTypeBox").SelectedIndex = Get<ComboBox>("TypeBox").SelectedIndex;
                 Get<ComboBox>("AutoMatchBox").SelectedIndex = Get<ComboBox>("MatchBox").SelectedIndex;
                 Get<TextBox>("AutoValueBox").Text = Get<TextBox>("ValueBox").Text;
@@ -61,7 +63,7 @@ namespace ProductDiagnosis
                 }
             });
             Get<ComboBox>("AutoPeriodBox").SelectionChanged += delegate { Get<UIElement>("AutoFixedDates").Visibility = (string)Get<ComboBox>("AutoPeriodBox").SelectedValue == "custom" ? Visibility.Visible : Visibility.Collapsed; };
-            Get<DataGrid>("AutoTasksGrid").SelectionChanged += delegate { if (!automationUpdating) { var row = SelectedAutomationTask(); if (row != null) { FillAutomationTask(row.Raw); Get<FrameworkElement>("AutoEditorCard").BringIntoView(); } } };
+            Get<DataGrid>("AutoTasksGrid").SelectionChanged += delegate { if (!automationUpdating) { var row = SelectedAutomationTask(); if (row != null) FillAutomationTask(row.Raw); UpdateTaskInspector(); } };
             Click("AutoViewResultButton", () => {
                 var row = Get<DataGrid>("AutoRunsGrid").SelectedItem as AutomationRunRow;
                 if (row == null || row.State != "成功" || string.IsNullOrEmpty(row.ResultName)) { SetText("AutoNotice", "请选择一条成功的运行记录。"); return; }
@@ -71,14 +73,15 @@ namespace ProductDiagnosis
             Click("AutoViewLogButton", () => {
                 var row = Get<DataGrid>("AutoRunsGrid").SelectedItem as AutomationRunRow;
                 if (row == null) return;
-                string file = Path.Combine(root, ".private", "automation", "logs", row.Id + ".log");
-                if (File.Exists(file)) ShellOpen(file);
+                OpenAutomationLog(row.Id);
             });
         }
         private AutomationTaskRow SelectedAutomationTask() { return Get<DataGrid>("AutoTasksGrid").SelectedItem as AutomationTaskRow; }
         private void NewAutomationTask()
         {
             automationEditId = null;
+            Get<ComboBox>("AutoSourceBox").SelectedIndex = 0;
+            Get<ComboBox>("AutoCurrencyBox").SelectedIndex = 0;
             Get<DataGrid>("AutoTasksGrid").SelectedIndex = -1;
             SetText("AutoEditorHeading", "新建任务");
             foreach (string name in new[] { "AutoNameBox", "AutoValueBox", "AutoShopBox" }) Get<TextBox>(name).Clear();
@@ -95,6 +98,7 @@ namespace ProductDiagnosis
             if (automationEditId == null) automationEditId = Guid.NewGuid().ToString();
             string country = Get<ComboBox>("AutoCountryBox").Text.Trim();
             return new {
+                source = SourceValue("AutoSourceBox"), currency = CurrencyValue("AutoCurrencyBox"),
                 id = automationEditId, name = Get<TextBox>("AutoNameBox").Text.Trim(), enabled = Get<CheckBox>("AutoEnabledBox").IsChecked == true,
                 type = typeValues[Math.Max(0, Get<ComboBox>("AutoTypeBox").SelectedIndex)], value = Get<TextBox>("AutoValueBox").Text,
                 match = Get<ComboBox>("AutoMatchBox").SelectedIndex == 1 ? "exact" : "fuzzy", country = country == "全部国家" ? "" : country,
@@ -106,6 +110,8 @@ namespace ProductDiagnosis
         private string DateString(string name) { var value = Get<DatePicker>(name).SelectedDate; return value.HasValue ? value.Value.ToString("yyyy-MM-dd") : ""; }
         private void FillAutomationTask(object task)
         {
+            Get<ComboBox>("AutoSourceBox").SelectedIndex = ReportData.TextAt(task, "source") == "mcp" ? 1 : 0;
+            string currency = ReportData.TextAt(task, "currency"); Get<ComboBox>("AutoCurrencyBox").Text = currency.Length > 0 ? currency : "自动";
             automationEditId = ReportData.TextAt(task, "id"); SetText("AutoEditorHeading", "编辑任务");
             Get<TextBox>("AutoNameBox").Text = ReportData.TextAt(task, "name");
             Get<TextBox>("AutoValueBox").Text = ReportData.TextAt(task, "value");
@@ -131,7 +137,7 @@ namespace ProductDiagnosis
                 process.Start(); var output = process.StandardOutput.ReadToEndAsync(); var error = process.StandardError.ReadToEndAsync();
                 using (var input = new StreamWriter(process.StandardInput.BaseStream, new UTF8Encoding(false)))
                     input.Write(ReportData.Serializer().Serialize(request));
-                if (!process.WaitForExit(35000)) { process.Kill(); throw new TimeoutException("自动化操作超时，请重试。"); }
+                if (!process.WaitForExit(65000)) { process.Kill(); throw new TimeoutException("自动化操作超时，请重试。"); }
                 if (process.ExitCode != 0) throw new InvalidOperationException(error.Result.Trim());
                 return ReportData.Serializer().DeserializeObject(output.Result);
             }
@@ -147,7 +153,7 @@ namespace ProductDiagnosis
             } catch (Exception error) { if (revision == automationRevision && !automationBusy) SetText("AutoNotice", error.Message); }
             finally { automationRefreshing = false; }
         }
-        private async void AutomationAction(object request)
+        private async void AutomationAction(object request, bool quiet = false)
         {
             if (automationBusy) return;
             automationBusy = true;
@@ -156,7 +162,7 @@ namespace ProductDiagnosis
             try {
                 object state = await Task.Run(() => CallAutomation(request));
                 ApplyAutomationState(state);
-                SetText("AutoNotice", "操作完成。任务按已保存的条件执行，可在下方查看运行记录。");
+                if (!quiet) SetText("AutoNotice", "操作完成。任务按已保存的条件执行，可在下方查看运行记录。");
             } catch (Exception error) { SetText("AutoNotice", error.Message); }
             finally {
                 automationBusy = false;
@@ -172,8 +178,10 @@ namespace ProductDiagnosis
         {
             Get<RadioButton>("NavAutomation").IsChecked = true;
             await WaitAutomationIdle();
-            NewAutomationTask();
+            Get<Button>("AutoNewButton").RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
             Get<TextBox>("AutoNameBox").Text = "示例定时任务·中文①";
+            Get<ComboBox>("AutoSourceBox").SelectedIndex = 1;
+            Get<ComboBox>("AutoCurrencyBox").Text = "EUR";
             Get<ComboBox>("AutoTypeBox").SelectedIndex = Array.IndexOf(typeValues, "name");
             Get<ComboBox>("AutoMatchBox").SelectedIndex = 1;
             Get<TextBox>("AutoValueBox").Text = "中文示例商品";
@@ -185,10 +193,21 @@ namespace ProductDiagnosis
             await WaitAutomationIdle();
             Require(Get<DataGrid>("AutoTasksGrid").Items.Count == 1, "自动化任务保存失败：" + Get<TextBlock>("AutoNotice").Text);
             var saved = ((AutomationTaskRow)Get<DataGrid>("AutoTasksGrid").Items[0]).Raw;
+            Require(ReportData.TextAt(saved, "source") == "mcp" && ReportData.TextAt(saved, "currency") == "EUR", "自动化任务的 MCP 通道或币种未保存。");
             Require(ReportData.TextAt(saved, "country") == "德国" && ReportData.TextAt(saved, "name") == "示例定时任务·中文①" && ReportData.TextAt(saved, "value") == "中文示例商品" && ReportData.TextAt(saved, "shop") == "示例 中文店铺", "中文任务内容未按 UTF-8 完整保存。");
             Require(ReportData.TextAt(saved, "type") == "品名" && ReportData.TextAt(saved, "match") == "精确", "任务类型或搜索方式保存错误。");
             Get<DataGrid>("AutoTasksGrid").SelectedIndex = 0;
             Require(Get<TextBox>("AutoValueBox").Text == "中文示例商品" && Get<ComboBox>("AutoCountryBox").Text == "德国" && Get<ComboBox>("AutoTypeBox").SelectedIndex == Array.IndexOf(typeValues, "name"), "自动化任务中文条件回填失败。");
+            Require(Get<TextBlock>("AutoDetailName").Text == "示例定时任务·中文①", "任务详情未显示所选真实任务。");
+            Get<RadioButton>("AutoFilterEnabled").IsChecked = true;
+            Require(Get<DataGrid>("AutoTasksGrid").Items.Count == 0, "启用任务筛选错误。");
+            Get<RadioButton>("AutoFilterPaused").IsChecked = true;
+            Require(Get<DataGrid>("AutoTasksGrid").Items.Count == 1, "停用任务筛选错误。");
+            Get<RadioButton>("AutoFilterAll").IsChecked = true;
+            Get<Button>("AutoCloseEditorButton").RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            Require(Get<UIElement>("AutoEditorCard").Visibility == Visibility.Collapsed, "任务编辑器未收起。");
+            Get<Button>("AutoEditButton").RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            Require(Get<UIElement>("AutoEditorCard").Visibility == Visibility.Visible, "任务详情编辑入口失败。");
             var periodBox = Get<ComboBox>("AutoPeriodBox");
             periodBox.ApplyTemplate(); Window.UpdateLayout();
             var periodPresenter = (ContentPresenter)periodBox.Template.FindName("SelectionPresenter", periodBox);
@@ -240,10 +259,8 @@ namespace ProductDiagnosis
             automationUpdating = true;
             try {
                 if (automationTasksJson != tasksJson) {
-                    var selected = SelectedAutomationTask(); string taskId = selected == null ? null : selected.Id;
-                    var rows = ReportData.Items(ReportData.Value(state, "tasks")).Select(t => new AutomationTaskRow(t)).ToList();
-                    Get<DataGrid>("AutoTasksGrid").ItemsSource = rows;
-                    Get<DataGrid>("AutoTasksGrid").SelectedItem = rows.FirstOrDefault(t => t.Id == taskId);
+                    workbenchTasks = ReportData.Items(ReportData.Value(state, "tasks")).Select(t => new AutomationTaskRow(t)).ToList();
+                    RenderTaskFilter();
                     automationTasksJson = tasksJson;
                 }
                 if (automationRunsJson != runsJson) {
@@ -254,6 +271,7 @@ namespace ProductDiagnosis
                     automationRunsJson = runsJson;
                 }
             } finally { automationUpdating = false; }
+            UpdateTaskInspector();
         }
         internal static string AutomationStateLabel(string state) { switch (state) { case "starting": return "启动中"; case "running": return "运行中"; case "ok": return "成功"; case "error": return "失败"; default: return "尚未运行"; } }
         internal static string AutomationTime(string value) { DateTimeOffset date; return DateTimeOffset.TryParse(value, out date) ? date.ToLocalTime().ToString("MM-dd HH:mm:ss") : "—"; }
@@ -263,10 +281,14 @@ namespace ProductDiagnosis
         internal readonly object Raw;
         public string Id { get; private set; } public string Name { get; private set; } public string Enabled { get; private set; }
         public string Scope { get; private set; } public string Period { get; private set; } public string Schedule { get; private set; } public string Next { get; private set; } public string Last { get; private set; }
+        public string CompactScope { get; private set; } public string Source { get; private set; } public string Timing { get; private set; }
         internal AutomationTaskRow(object raw) {
             Raw = raw; Id = ReportData.TextAt(raw, "id"); Name = ReportData.TextAt(raw, "name"); Enabled = (bool)ReportData.Value(raw, "enabled") ? "启用" : "停用";
-            Scope = ReportData.TextAt(raw, "value") + " · " + (ReportData.TextAt(raw, "country").Length > 0 ? ReportData.TextAt(raw, "country") : "全部国家") + " · " + ReportData.TextAt(raw, "shop");
+            Scope = (ReportData.TextAt(raw, "source") == "mcp" ? "MCP · " : "浏览器 · ") + ReportData.TextAt(raw, "value") + " · " + (ReportData.TextAt(raw, "country").Length > 0 ? ReportData.TextAt(raw, "country") : "全部国家") + " · " + ReportData.TextAt(raw, "shop");
             Period = ReportData.TextAt(raw, "periodLabel"); Schedule = ReportData.TextAt(raw, "scheduleLabel"); Next = NativeWindow.AutomationTime(ReportData.TextAt(raw, "nextAt")); Last = NativeWindow.AutomationStateLabel(ReportData.TextAt(raw, "latest", "status"));
+            Source = ReportData.TextAt(raw, "source") == "mcp" ? "MCP" : "浏览器";
+            CompactScope = (ReportData.TextAt(raw, "country").Length > 0 ? ReportData.TextAt(raw, "country") : "全部国家") + " · " + (ReportData.TextAt(raw, "shop").Length > 0 ? ReportData.TextAt(raw, "shop") : "全部店铺") + " · " + Period;
+            Timing = ReportData.TextAt(raw, "time") + "\n" + (ReportData.Items(ReportData.Value(raw, "days")).Count() == 7 ? "每天" : string.Join(" ", ReportData.Items(ReportData.Value(raw, "days")).Select(d => new[] { "日", "一", "二", "三", "四", "五", "六" }[Convert.ToInt32(d)])));
         }
     }
     internal sealed class AutomationRunRow

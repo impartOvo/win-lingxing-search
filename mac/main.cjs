@@ -5,11 +5,14 @@ const fs = require('node:fs');
 const os = require('node:os');
 const reports = require('./reports.cjs');
 const automation = require('../automation/cli.cjs');
+const mcp = require('../mcp/cli.cjs');
 
 const smoke = process.argv.includes('--smoke-test');
 const collectOnce = process.argv.includes('--collect-once');
 const smokeRoot = smoke ? fs.mkdtempSync(path.join(os.tmpdir(), 'lingxing-smoke-')) : null;
-app.setName('Lingxing Search');
+// Keep the established data directory across the product rename.
+app.setPath('userData', path.join(app.getPath('appData'), 'Lingxing Search'));
+app.setName('PulsarFetch');
 if (smokeRoot) app.setPath('userData', smokeRoot);
 let window, child, lastBundle, stage = '就绪', logs = [], smokeFinished = false;
 const dataRoot = () => app.getPath('userData');
@@ -49,7 +52,7 @@ function runCollector(input, helpOnly = false) {
   worker.stdout.setEncoding('utf8'); worker.stderr.setEncoding('utf8');
   worker.stdout.on('data', chunk => stream('out', chunk));
   worker.stderr.on('data', chunk => stream('err', chunk));
-  status(helpOnly ? '检查采集模块' : '正在打开领星');
+  status(helpOnly ? '检查采集模块' : input.source === 'mcp' ? '正在连接 MCP' : '正在打开领星');
   return new Promise((resolve, reject) => {
     worker.once('exit', async code => {
       await Promise.all([worker.stdout, worker.stderr].map(stream => stream.readableEnded || stream.destroyed ? Promise.resolve() : new Promise(resolve => { stream.once('end', resolve); stream.once('close', resolve); })));
@@ -71,11 +74,12 @@ function runCollector(input, helpOnly = false) {
 }
 
 function registerIPC() {
+  ipcMain.handle('mcp', (_, request) => mcp.execute(request, dataRoot()));
   ipcMain.handle('automation', (_, request) => automation.execute(request, dataRoot()));
   ipcMain.handle('automation-log', async (_, id) => {
     if (!/^[a-f0-9-]{36}$/i.test(id)) throw new Error('无效的运行标识');
-    const error = await shell.openPath(path.join(dataRoot(), '.private', 'automation', 'logs', id + '.log'));
-    if (error) throw new Error(error);
+    const file = path.join(dataRoot(), '.private', 'automation', 'logs', id + '.log');
+    return fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '这次运行尚无日志。';
   });
   ipcMain.handle('app-state', () => ({ history: reports.history(resultRoot()), running: !!child, status: stage, logs, dataRoot: dataRoot(), countries: reports.COUNTRIES }));
   ipcMain.handle('read-result', (_, name) => { lastBundle = reports.readBundle(resultRoot(), name); return lastBundle; });
@@ -99,8 +103,8 @@ function registerIPC() {
 
 function createWindow() {
   window = new BrowserWindow({
-    width: 1280, height: 880, minWidth: 980, minHeight: 680, backgroundColor: '#111620',
-    title: '商品诊断', titleBarStyle: 'hiddenInset', show: false,
+    width: 1380, height: 900, minWidth: 1060, minHeight: 720, backgroundColor: '#111315',
+    title: 'PulsarFetch', titleBarStyle: 'hiddenInset', show: false,
     webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false }
   });
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -169,6 +173,11 @@ async function runSmoke() {
     if (document.querySelectorAll('#countries option').length !== 22) throw new Error('国家候选缺失');
     document.querySelector('#edit-query').click();
     if (document.querySelector('#value').value !== 'B0ASIN0001') throw new Error('查询回填失败');
+    document.querySelector('[data-result-tab="info"]').click();
+    if (!document.querySelector('#result-info').textContent.includes('浏览器')) throw new Error('采集信息缺少来源');
+    document.querySelector('[data-result-tab="json"]').click();
+    if (!JSON.parse(document.querySelector('#result-json').textContent).data.list.length) throw new Error('原始 JSON 缺少数据');
+    document.querySelector('[data-result-tab="records"]').click();
     document.querySelector('#reset-page').click();
     if (document.querySelector('#value').value || document.querySelector('#from').value || !document.querySelector('#result-content').hidden || document.querySelector('#results').hidden === false) throw new Error('页面重置失败');
     if (document.querySelector('#empty').hidden) throw new Error('空结果提示未保留');
@@ -192,6 +201,13 @@ async function runSmoke() {
     await waitForAutomation(() => automationState.tasks.length === 1 && !automationBusy, '自动化任务保存失败');
     const task = automationState.tasks[0];
     if (task.country !== '加拿大' || task.value !== '示例中文商品' || task.type !== '品名' || task.shop !== '示例中文店铺') throw new Error('自动化中文条件损坏');
+    document.querySelector('[data-task-filter="enabled"]').click();
+    if (document.querySelectorAll('#a-tasks tr[data-id]').length) throw new Error('启用任务筛选错误');
+    document.querySelector('[data-task-filter="paused"]').click();
+    if (document.querySelectorAll('#a-tasks tr[data-id]').length !== 1 || document.querySelector('#a-detail-name').textContent !== task.name) throw new Error('停用任务与详情错误');
+    document.querySelector('[data-task-filter="all"]').click();
+    document.querySelector('#a-detail-edit').click();
+    if (document.querySelector('#a-editor').hidden || document.querySelector('#a-value').value !== task.value) throw new Error('任务详情编辑失败');
     const firstRow = document.querySelector('#a-tasks tr');
     const refresh = automationRequest();
     if (document.querySelector('#a-save').disabled || document.querySelector('#a-schedule').disabled || document.querySelector('#a-run-all').disabled) throw new Error('后台刷新禁用了按钮');
@@ -225,10 +241,15 @@ else {
   app.whenReady().then(() => {
     registerIPC();
     Menu.setApplicationMenu(Menu.buildFromTemplate([
-      { label: '商品诊断', submenu: [{ role: 'about', label: '关于商品诊断' }, { type: 'separator' }, { role: 'quit', label: '退出商品诊断' }] },
+      { label: 'PulsarFetch', submenu: [{ role: 'about', label: '关于 PulsarFetch' }, { type: 'separator' }, { role: 'quit', label: '退出 PulsarFetch' }] },
       { role: 'editMenu', label: '编辑' }, { role: 'windowMenu', label: '窗口' }
     ]));
     createWindow();
+    // Rebind existing schedules to the renamed executable while keeping the data root and task IDs.
+    if (app.isPackaged && !smoke && !collectOnce) {
+      try { automation.execute({ action: 'sync-schedule' }, dataRoot()); }
+      catch (error) { log('系统定时计划更新失败：' + error.message); }
+    }
     app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
   }).catch(error => { if (smoke) finishSmoke(error); else if (collectOnce) finishCollectionTest(error); else dialog.showErrorBox('启动失败', error.message); });
   app.on('before-quit', event => { if (child) { event.preventDefault(); status('采集正在进行，请等待完成后退出'); } });

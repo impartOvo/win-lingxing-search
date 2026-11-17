@@ -1,4 +1,4 @@
 @echo off
 chcp 65001 >nul
 cd /d "%~dp0"
-start "" "%~dp0商品诊断.exe"
+start "" "%~dp0PulsarFetch.exe"

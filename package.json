@@ -1,7 +1,7 @@
 {
-  "name": "win-lingxing-search",
+  "name": "pulsarfetch",
   "private": true,
-  "version": "1.3.0",
+  "version": "1.4.0",
   "main": "mac/main.cjs",
   "scripts": {
     "browser": "node browser.js",
@@ -12,7 +12,10 @@
     "mac:pack": "install-electron && electron-builder --config electron-builder.mac.json --publish never"
   },
   "dependencies": {
-    "playwright": "^1.56.0"
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "playwright": "^1.56.0",
+    "smol-toml": "1.9.1",
+    "ajv": "8.20.0"
   },
   "license": "MIT",
   "description": "Desktop product report collector for Lingxing ERP on Windows and macOS",

@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld('desktop', {
   state: () => ipcRenderer.invoke('app-state'),
   readResult: name => ipcRenderer.invoke('read-result', name),
   collect: input => ipcRenderer.invoke('collect', input),
+  mcp: request => ipcRenderer.invoke('mcp', request),
   automation: request => ipcRenderer.invoke('automation', request),
   automationLog: id => ipcRenderer.invoke('automation-log', id),
   openFolder: which => ipcRenderer.invoke('open-folder', which),

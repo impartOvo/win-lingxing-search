@@ -1,8 +1,10 @@
-# 商品诊断 · win-lingxing-search
+# PulsarFetch
+
+**Product Data Collector · 商品数据采集工具**
 
 把领星 ERP 的商品查询条件保存下来，通过桌面界面或定时任务完成采集，再将结构化结果交给人或 AI 分析。
 
-Windows 使用原生 C# / WPF，macOS 使用 Electron；两端采用深色背景、蓝色强调色、侧栏和卡片布局。日常使用通过桌面应用完成，无需每次打开终端输入命令。
+Windows 使用原生 C# / WPF，macOS 使用 Electron；两端采用石墨灰背景与脉冲青强调色，以任务列表、详情面板和结构化结果组织工作空间。日常使用通过桌面应用完成，无需每次打开终端输入命令。
 
 ## 目录
 
@@ -32,20 +34,22 @@ Windows 使用原生 C# / WPF，macOS 使用 Electron；两端采用深色背景
 
 项目适合已能登录领星、需要重复查询商品表现的运营人员。它通过专用 Chrome 登录态和 Playwright 页面操作读取「产品表现」，不要求领星付费官方 API。读取权限仍取决于当前账号能查看的数据。
 
-“商品诊断”是应用名称。当前程序负责采集、展示和留档，经营判断由使用者或接收数据的 AI 完成；应用本身没有接入大模型，也没有自动修改广告、价格或 Listing 的功能。
+应用现名为 **PulsarFetch**，原“商品诊断”为临时名称。当前程序负责采集、展示和留档，经营判断由使用者或接收数据的 AI 完成；应用本身没有接入大模型，也没有自动修改广告、价格或 Listing 的功能。
 
 ## 版本与分支
 
-截至 **2026-11-14**，版本状态如下：
+当前版本为 **v1.4.0 · PulsarFetch**。三平台安装包由 Release 工作流构建并验证后发布。
 
 | 项目 | 当前状态 |
 |---|---|
-| 当前发布版本 | [v1.3.0](https://github.com/impartOvo/win-lingxing-search/releases/tag/v1.3.0) |
-| 源码中的应用版本号 | `package.json` 为 `1.3.0`；Windows 文件版本由构建脚本生成为 `1.3.0.0` |
+| 此前发布版本 | [v1.3.0](https://github.com/impartOvo/win-lingxing-search/releases/tag/v1.3.0) |
+| 源码中的应用版本号 | `1.4.0`，含 PulsarFetch 新界面、独立 MCP 和定时闪窗修复 |
 | v1.3.0 功能 | 重置页面、定时自动采集、动态日期范围、多任务并发、自动化运行记录，以及中文编码和刷新修复 |
 | 安装包 | Windows x64、Mac ARM64、Mac x64；构建及检查通过后由 Release 工作流统一发布 |
 
-**需要自动化功能时，请下载 v1.3.0 安装包。旧 v1.2.2 ZIP 不包含自动化页面。**
+v1.3.0 包仍使用旧名称与旧界面；新版请使用 v1.4.0 安装包。旧 v1.2.2 ZIP 不包含自动化页面。
+
+当前 1.4.0 采用 PulsarFetch 品牌与任务工作台，加入独立 MCP 客户端、手动／定时采集通道选择、来源与 JSON 页签，以及按任务设定时间直接触发的调度修复。正式 v1.3.0 发行包尚未包含这些改动。MCP 配置、权限和数据口径见 [MCP 使用说明](docs/mcp-client.md)。
 
 | 分支 | 用途 |
 |---|---|
@@ -89,10 +93,10 @@ Windows 使用原生 C# / WPF，macOS 使用 Electron；两端采用深色背景
 
 运行条件：Windows x64、.NET Framework 4.8 / 4.8.1、Google Chrome。
 
-1. 从 [v1.3.0 Release 页面](https://github.com/impartOvo/win-lingxing-search/releases/tag/v1.3.0) 下载 [Windows x64 ZIP](https://github.com/impartOvo/win-lingxing-search/releases/download/v1.3.0/lingxing-search-1.3.0-windows-x64.zip)，或使用当前源码自行构建。
+1. 从 [Releases](https://github.com/impartOvo/win-lingxing-search/releases) 下载对应版本的 Windows x64 ZIP，或使用当前源码构建。v1.4.0 包名为 `PulsarFetch-1.4.0-windows-x64.zip`。
 2. 将整个目录解压到当前用户有写入权限、准备长期保留的位置。
-3. 双击 `商品诊断.exe`。便携包包含 Node 运行时和 Playwright 依赖，请保留完整目录。
-4. 打开「采集条件」，先用一个已知商品做一次手动采集。
+3. 双击 `PulsarFetch.exe`（v1.3.0 旧包为 `商品诊断.exe`）。便携包包含 Node 运行时和 Playwright 依赖，请保留完整目录。
+4. 首页为「采集任务」。打开「新建采集」，选择浏览器或 MCP 通道，先用一个已知商品做一次手动采集。
 5. 如果弹出的专用 Chrome 尚未登录，请在该窗口登录领星并进入「产品表现」。程序会继续采集。
 6. 成功后检查结果页中的商品、店铺／国家和日期，确认与预期一致。
 
@@ -102,12 +106,12 @@ Windows 使用原生 C# / WPF，macOS 使用 Electron；两端采用深色背景
 
 运行条件：macOS 13 Ventura 或以上、Google Chrome。安装包内置运行时，无需另外安装 Node、.NET 或 Python。
 
-| 电脑类型 | v1.3.0 下载包 |
+| 电脑类型 | v1.4.0 下载包 |
 |---|---|
-| Apple 芯片（M 系列，ARM64） | [Apple 芯片版](https://github.com/impartOvo/win-lingxing-search/releases/download/v1.3.0/lingxing-search-1.3.0-mac-arm64.zip) |
-| Intel（x64） | [Intel 版](https://github.com/impartOvo/win-lingxing-search/releases/download/v1.3.0/lingxing-search-1.3.0-mac-x64.zip) |
+| Apple 芯片（M 系列，ARM64） | [Apple 芯片版](https://github.com/impartOvo/win-lingxing-search/releases/download/v1.4.0/PulsarFetch-1.4.0-mac-arm64.zip) |
+| Intel（x64） | [Intel 版](https://github.com/impartOvo/win-lingxing-search/releases/download/v1.4.0/PulsarFetch-1.4.0-mac-x64.zip) |
 
-解压后将 `Lingxing Search.app` 放入「应用程序」或其他固定位置，再打开应用、填写条件并完成首次登录。
+解压并将 `PulsarFetch.app`（v1.3.0 为 `Lingxing Search.app`） 放入「应用程序」或其他固定位置，再打开应用、填写条件并完成首次登录。
 
 当前正式 Mac 包采用 ad-hoc 临时签名，未经过 Apple Developer ID 签名或公证。首次打开可能需要在「系统设置 → 隐私与安全性」中确认应用，具体见 [Mac 发布说明](docs/mac-release-notes.md)。
 
@@ -115,7 +119,9 @@ Mac 数据目录为 `~/Library/Application Support/Lingxing Search/`，可通过
 
 ## 日常操作
 
-### 1. 设置采集条件
+「采集任务」首页支持全部／已启用／已停用筛选；点击任务可查看真实最近状态、耗时、下次执行和失败原因，再进入结果、日志或编辑条件。「新建采集」右侧预览实时显示条件；「设为定时任务」保留所选动态日期。
+
+### 1. 新建采集
 
 | 条件 | 填写方法 |
 |---|---|
@@ -132,9 +138,9 @@ Mac 数据目录为 `~/Library/Application Support/Lingxing Search/`，可通过
 
 点击「开始采集」，等待筛选、取数、分页和保存完成。需要检查进度或错误时，打开「运行日志」。
 
-结果页上方的下拉框用于选择本次返回的商品记录；下方卡片和 MSKU 表格随选择更新。币种以当前记录为准，缺失值显示为 `—`。点击「打开数据」可打开该次采集的业务 JSON；「修改条件」会回填查询条件，便于再查一次。
+结果页上方的下拉框用于选择本次返回的商品记录；下方卡片和 MSKU 表格随选择更新。币种以当前记录为准，缺失值显示为 `—`。通过「商品数据 / 采集信息 / 原始 JSON」切换结果视图。点击「打开 JSON 文件」可打开该次采集的业务 JSON；「修改条件」会回填查询条件，便于再查一次。
 
-在「历史记录」中可以重新打开以前成功的采集。「打开结果文件夹」用于查找可交给 AI 的 JSON 文件。
+在「历史结果」中可以重新打开以前成功的采集。「打开结果文件夹」用于查找可交给 AI 的 JSON 文件。
 
 ### 3. 重置页面
 
@@ -178,6 +184,8 @@ Mac 数据目录为 `~/Library/Application Support/Lingxing Search/`，可通过
 
 这里的 A、B 是填写示意，请替换为账号中的真实商品和国家。
 
+每项任务还可以选择“浏览器采集”或“MCP 直接采集”。MCP 任务先在侧栏配置并测试连接；旧任务默认继续使用浏览器，保存连接不会自动切换。统计币种留空时按所选站点确定，跨币种范围需明确选择。
+
 ### 第四步：启用定时总开关
 
 确认任务已保存、各项条件正确后，点击页面上方的「启用定时运行」。
@@ -186,7 +194,7 @@ Mac 数据目录为 `~/Library/Application Support/Lingxing Search/`，可通过
 - **定时总开关**决定系统是否按时间自动触发。
 - 单项「立即运行」可运行已保存的任务，即使该任务停用；立即运行也不受定时总开关影响。
 
-启用后，Windows 注册当前用户的系统计划任务，Mac 注册当前用户的 LaunchAgent。调度按分钟检查，目标时间是本机时区的相应分钟；进程和浏览器启动仍有耗时，不保证在该分钟第 0 秒就完成打开或取数。
+启用后，Windows 按执行时间分组注册当前用户的系统计划任务，Mac 注册当前用户的 LaunchAgent 日历触发。系统到设定的星期和时间才启动调度，支持 08:00、18:00 或其他任意分钟；同一时刻的多项任务一起发起，不再每分钟启动空检查。保存、编辑、停用或删除任务时自动同步触发时间；同步失败会恢复此前配置并显示错误。目标时间使用本机时区；进程和浏览器启动仍有耗时，不保证在该分钟第 0 秒就完成打开或取数。
 
 ### 日期范围怎么选
 
@@ -272,7 +280,7 @@ results/
 可给本机助手这样的任务：
 
 ```text
-请在本机商品诊断应用目录中，只读采集指定商品的领星产品表现。
+请在本机 PulsarFetch 应用目录中，只读采集指定商品的领星产品表现。
 先告诉我本次会使用的商品类型、商品值、国家、店铺和日期口径，
 按我提供的条件调用 browser.js，再读取本次新生成且状态为 ok 的结果对。
 不要自动修改广告、价格、Listing、定时任务或历史文件。
@@ -340,6 +348,8 @@ Windows 便携应用目录中的只读命令示例：
 - **迁移任务条件**：可按需要从自己的 `tasks.json` 恢复业务条件，但该文件仍是私有资料；系统计划任务不会随文件迁移，必须在目标电脑重新启用并检查任务。
 - **Windows 与 Mac**：EXE 和 `.app` 不能互相运行，历史 JSON 采用相同格式，可按完整文件对迁移。
 
+升级前等待当前采集结束，再将新包文件复制到原应用目录，保留 `results/` 与 `.private/`。运行 `PulsarFetch.exe` 时会按原任务配置同步系统启动路径，保留启用状态、星期与时间。Mac 数据目录继续使用 `~/Library/Application Support/Lingxing Search/`，以继承已有数据。升级步骤见 [界面与迁移说明](docs/workbench.md)。
+
 ## 常见问题
 
 | 问题 | 检查方法 |
@@ -376,7 +386,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File desktop/test-exe.ps1 -Mo
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File desktop/test-exe.ps1 -Mode smoke-test
 ```
 
-构建后双击 `商品诊断.exe`。应用界面直接运行；PowerShell 用于开发构建和 Windows 定时注册，不负责每次唤醒界面。开发构建会创建应用快捷方式，CI 中跳过这一步。
+构建后双击 `PulsarFetch.exe`（v1.3.0 旧包为 `商品诊断.exe`）。应用界面直接运行；PowerShell 用于开发构建和 Windows 定时注册，不负责每次唤醒界面。开发构建会创建应用快捷方式，CI 中跳过这一步。
 
 如需制作便携包：
 
@@ -425,7 +435,7 @@ node crawler.js
 关闭正在运行的应用，替换占位商品后，在 Mac 终端执行：
 
 ```sh
-"/Applications/Lingxing Search.app/Contents/MacOS/Lingxing Search" --collect-once --type parent_asin --value B0ASIN0001 --country 加拿大 --period prev30 --test-report "$HOME/Desktop/lingxing-collection-test.json"
+"/Applications/PulsarFetch.app/Contents/MacOS/PulsarFetch" --collect-once --type parent_asin --value B0ASIN0001 --country 加拿大 --period prev30 --test-report "$HOME/Desktop/lingxing-collection-test.json"
 ```
 
 该命令使用正常应用数据目录，采集后退出并写入成功／失败报告。退出码 `0` 表示成功，非零表示失败；报告和业务数据留在本机。首次登录仍需在专用 Chrome 中完成。
@@ -441,7 +451,7 @@ Windows 工作流在 `main` 推送、PR 和手动触发时构建。Mac 工作流
 ### 当前验证范围
 
 - v1.2.2 正式版已有 Windows 和两种 Mac 架构的构建、自检及发布检查记录；这些不代表新增自动化已在 Mac 实测。
-- 新增重置和自动化功能已通过 15 项 Node 测试及 Windows 应用自检，覆盖日期计算、任务保存／编辑／删除、定时选择和失败状态等。
+- 新增重置和自动化功能及当前调度修复已通过 26 项 Node 测试及 Windows 应用自检，覆盖日期计算、任务保存／编辑／删除、08:00／18:00 独立调度、同刻并发、触发去重、系统同步、失败恢复、MCP 标准客户端、凭据保护、分页与独立采集进程等。
 - Windows 临时系统计划任务已完成实际分钟触发、注册和移除验证。
 - 两项真实领星采集已验证同时运行、分别成功、结果不覆盖且共用登录文件未被改写；单日日期范围也已实测。
 - 40 项到期任务的测试使用合成调度数据，验证程序未设置并发数量限制，不能据此声称已完成 40 项真实浏览器采集。

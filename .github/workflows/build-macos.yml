@@ -37,31 +37,31 @@ jobs:
         env:
           LINGXING_SMOKE_REPORT: ${{ runner.temp }}/app-smoke.json
         run: |
-          APP="dist-mac/${{ matrix.appdir }}/Lingxing Search.app"
+          APP="dist-mac/${{ matrix.appdir }}/PulsarFetch.app"
           codesign --verify --deep --strict "$APP"
           set +e
-          "$APP/Contents/MacOS/Lingxing Search" --smoke-test
+          "$APP/Contents/MacOS/PulsarFetch" --smoke-test
           RESULT=$?
           cat "$LINGXING_SMOKE_REPORT"
           exit "$RESULT"
       - name: Verify actual collection entry rejects invalid input with a report
         run: |
-          APP="dist-mac/${{ matrix.appdir }}/Lingxing Search.app"
+          APP="dist-mac/${{ matrix.appdir }}/PulsarFetch.app"
           REPORT="$RUNNER_TEMP/invalid-collection.json"
-          if "$APP/Contents/MacOS/Lingxing Search" --collect-once --value "" --test-report "$REPORT"; then
+          if "$APP/Contents/MacOS/PulsarFetch" --collect-once --value "" --test-report "$REPORT"; then
             echo "Invalid query unexpectedly succeeded"
             exit 1
           fi
           node -e "const r=require(process.argv[1]); if(r.status!=='error'||r.mode!=='collection') process.exit(1)" "$REPORT"
       - name: Package and test extracted application
         run: |
-          APP="dist-mac/${{ matrix.appdir }}/Lingxing Search.app"
-          ZIP="dist-mac/lingxing-search-${APP_VERSION}-mac-${{ matrix.arch }}.zip"
+          APP="dist-mac/${{ matrix.appdir }}/PulsarFetch.app"
+          ZIP="dist-mac/PulsarFetch-${APP_VERSION}-mac-${{ matrix.arch }}.zip"
           ditto -c -k --sequesterRsrc --keepParent "$APP" "$ZIP"
           ditto -x -k "$ZIP" "$RUNNER_TEMP/extracted"
-          APP="$RUNNER_TEMP/extracted/Lingxing Search.app"
+          APP="$RUNNER_TEMP/extracted/PulsarFetch.app"
           codesign --verify --deep --strict "$APP"
-          LINGXING_SMOKE_REPORT="$RUNNER_TEMP/extracted-smoke.json" "$APP/Contents/MacOS/Lingxing Search" --smoke-test
+          LINGXING_SMOKE_REPORT="$RUNNER_TEMP/extracted-smoke.json" "$APP/Contents/MacOS/PulsarFetch" --smoke-test
           cat "$RUNNER_TEMP/extracted-smoke.json"
           (cd dist-mac && shasum -a 256 "$(basename "$ZIP")" > "SHA256SUMS-mac-${{ matrix.arch }}.txt")
       - uses: actions/upload-artifact@v4

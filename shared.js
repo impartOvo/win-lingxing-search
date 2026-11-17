@@ -34,6 +34,9 @@ function args(argv) {
 }
 
 function validate(options) {
+  options.source ||= 'browser';
+  if (!['browser', 'mcp'].includes(options.source)) throw new Error('采集通道仅支持 browser 或 mcp');
+  if (options.currency && !/^[A-Z]{3}$/.test(options.currency)) throw new Error('币种需为 EUR、USD 等三个大写字母');
   for (const key of ['save-template', 'diagnostics']) {
     if (options[key] === undefined) options[key] = false;
     else if ([true, 'true', '1'].includes(options[key])) options[key] = true;

@@ -70,15 +70,16 @@ namespace ProductDiagnosis
         internal static string DataPath(string summaryPath)
         {
             string name = Path.GetFileName(summaryPath);
-            if (!name.StartsWith("browser-", StringComparison.Ordinal) || name.StartsWith("browser-data-", StringComparison.Ordinal))
-                throw new InvalidDataException("请选择 browser- 开头的采集记录。");
-            return Path.Combine(Path.GetDirectoryName(summaryPath), "browser-data-" + name.Substring(8));
+            if (!System.Text.RegularExpressions.Regex.IsMatch(name, @"^(browser|mcp)-(?!data-)[\w.-]+\.json$"))
+                throw new InvalidDataException("请选择有效的浏览器或 MCP 采集记录。");
+            string prefix = name.StartsWith("mcp-", StringComparison.Ordinal) ? "mcp-" : "browser-";
+            return Path.Combine(Path.GetDirectoryName(summaryPath), prefix + "data-" + name.Substring(prefix.Length));
         }
 
         internal static CollectionBundle ReadBundle(string path)
         {
             object summary = ReadJson(path);
-            if (TextAt(summary, "method") != "browser" || TextAt(summary, "status") != "ok")
+            if ((TextAt(summary, "method") != "browser" && TextAt(summary, "method") != "mcp") || TextAt(summary, "status") != "ok")
                 throw new InvalidDataException("这次采集尚未确认成功，无法展示结果。");
             string dataPath = DataPath(path);
             if (!File.Exists(dataPath)) throw new FileNotFoundException("找不到这次采集对应的数据文件。", dataPath);
@@ -153,17 +154,18 @@ namespace ProductDiagnosis
         {
             var rows = new List<HistoryRecord>();
             if (!Directory.Exists(directory)) return rows;
-            foreach (string path in Directory.GetFiles(directory, "browser-*.json").Where(x => !Path.GetFileName(x).StartsWith("browser-data-", StringComparison.Ordinal)).OrderByDescending(x => Path.GetFileName(x), StringComparer.Ordinal))
+            foreach (string path in Directory.GetFiles(directory, "*.json").Where(x => System.Text.RegularExpressions.Regex.IsMatch(Path.GetFileName(x), @"^(browser|mcp)-(?!data-)[\w.-]+\.json$")).OrderByDescending(x => File.GetLastWriteTimeUtc(x)))
             {
                 try
                 {
                     object summary = ReadJson(path);
-                    if (TextAt(summary, "method") != "browser" || TextAt(summary, "status") != "ok" || !File.Exists(DataPath(path))) continue;
+                    if ((TextAt(summary, "method") != "browser" && TextAt(summary, "method") != "mcp") || TextAt(summary, "status") != "ok" || !File.Exists(DataPath(path))) continue;
                     string country = TextAt(summary, "input", "country");
                     string shop = TextAt(summary, "input", "shop");
                     rows.Add(new HistoryRecord {
                         SavedAt = DateTimeOffset.Parse(TextAt(summary, "fetchedAt"), CultureInfo.InvariantCulture).ToLocalTime().ToString("yyyy-MM-dd HH:mm"),
                         Type = TextAt(summary, "input", "type"), Value = TextAt(summary, "input", "value"),
+                        Source = TextAt(summary, "method") == "mcp" ? "MCP" : "浏览器", Currency = TextAt(summary, "input", "currency").Length > 0 ? TextAt(summary, "input", "currency") : "见记录",
                         Country = country.Length > 0 ? country : "全部国家", Shop = shop.Length > 0 ? shop : "全部店铺",
                         Dates = string.Join(" — ", Items(Value(summary, "dates")).Select(Text)),
                         Count = Number(Value(summary, "pagination", "collected")), Path = path
@@ -197,6 +199,8 @@ namespace ProductDiagnosis
 
     public sealed class HistoryRecord
     {
+        public string Source { get; set; }
+        public string Currency { get; set; }
         public string SavedAt { get; set; }
         public string Type { get; set; }
         public string Value { get; set; }

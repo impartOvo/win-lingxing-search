@@ -1,5 +1,5 @@
 'use strict';
-const { main } = require('../browser');
+const { main } = require('../collector.cjs');
 async function finish(code) {
   await Promise.all([
     new Promise(resolve => process.stdout.write('', resolve)),
@@ -8,6 +8,6 @@ async function finish(code) {
   process.exit(code);
 }
 main(process.argv.slice(2)).then(() => finish(0), error => {
-  console.error(`浏览器版失败：${error.message}`);
+  console.error(`采集失败：${error.message}`);
   return finish(1);
 });

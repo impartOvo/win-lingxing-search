@@ -1,0 +1,55 @@
+{
+  "code": 0,
+  "data": {
+    "list": [
+      {
+        "parent_asin": "B0ASIN0001",
+        "local_name": "示例商品",
+        "currency_code": "CAD",
+        "volume": 12,
+        "amount": 239.88,
+        "return_goods_count": 1,
+        "return_goods_rate": 0.0833,
+        "return_count": 2,
+        "return_rate": 0.1667,
+        "sessions_total": 300,
+        "sessions": 120,
+        "sessions_mobile": 180,
+        "page_views_total": 400,
+        "cvr": 0.04,
+        "ad_sales_amount": 99.95,
+        "afn_fulfillable_quantity": 40,
+        "available_days": 20,
+        "price_list": [
+          {
+            "local_name": "示例商品",
+            "seller_sku": "DEMO-BLUE-M",
+            "local_sku": "DEMO-M",
+            "seller_name": "店铺A-CA",
+            "country": "加拿大",
+            "volume": "7",
+            "price": "19.99"
+          },
+          {
+            "local_name": "示例商品",
+            "seller_sku": "DEMO-BLUE-L",
+            "local_sku": "DEMO-L",
+            "seller_name": "店铺A-CA",
+            "country": "加拿大",
+            "volume": "5",
+            "price": "19.99"
+          }
+        ],
+        "seller_store_countries": [
+          {
+            "seller_name": "店铺A-CA",
+            "country": "加拿大"
+          }
+        ],
+        "asin": null,
+        "sku": null
+      }
+    ]
+  },
+  "synthetic": true
+}

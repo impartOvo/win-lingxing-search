@@ -6,19 +6,39 @@ const { dispatch } = require('./dispatch.cjs');
 const { register } = require('./platform.cjs');
 const dataIndex = process.argv.indexOf('--data');
 const dataRoot = dataIndex >= 0 ? path.resolve(process.argv[dataIndex + 1]) : require('../shared').DATA_ROOT;
-function execute(request, root = dataRoot) {
-  const config = core.readConfig(root);
+function execute(request, root = dataRoot, registerSchedule = register) {
+  const previous = core.readConfig(root);
+  const config = { ...previous, tasks: [...previous.tasks] };
+  function persist(force = false) {
+    core.saveConfig(root, config);
+    const changed = JSON.stringify(core.scheduleSlots(config.tasks)) !== JSON.stringify(core.scheduleSlots(previous.tasks));
+    if (!force && (!config.enabled || !changed)) return;
+    try { registerSchedule(root, config.enabled, config.tasks); }
+    catch (error) {
+      // A pause must remain effective even if the OS refuses to remove a trigger.
+      if (!config.enabled) throw error;
+      core.saveConfig(root, previous);
+      try { registerSchedule(root, previous.enabled, previous.tasks); }
+      catch {
+        throw new Error('任务配置已恢复，但系统定时计划恢复失败，请暂停后重新启用定时运行。详细原因已写入 scheduler-error.log。');
+      }
+      throw error;
+    }
+  }
   switch (request.action) {
     case 'snapshot': return core.snapshot(root);
+    // Product upgrades may rename the executable. Rebind the system launcher
+    // without rewriting the user's task definitions or their enabled state.
+    case 'sync-schedule': registerSchedule(root, config.enabled, config.tasks); break;
     case 'save-task': {
       const task = core.normalizeTask(request.task), index = config.tasks.findIndex(t => t.id === task.id);
       if (index < 0) config.tasks.push(task); else config.tasks[index] = task;
-      core.saveConfig(root, config); break;
+      persist(); break;
     }
-    case 'delete-task': config.tasks = config.tasks.filter(t => t.id !== request.id); core.saveConfig(root, config); break;
+    case 'delete-task': config.tasks = config.tasks.filter(t => t.id !== request.id); persist(); break;
     case 'schedule':
-      if (request.enabled) { register(root, true); config.enabled = true; core.saveConfig(root, config); }
-      else { config.enabled = false; core.saveConfig(root, config); register(root, false); }
+      config.enabled = request.enabled === true;
+      persist(true);
       break;
     case 'run': {
       const launched = dispatch(root, { ids: request.ids });

@@ -40,10 +40,10 @@ function normalizeTask(raw) {
   if (!Object.hasOwn(PERIODS, raw.period)) throw new Error('请选择采集日期范围');
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(raw.time)) throw new Error('运行时间请填写 HH:mm，例如 09:00');
   if (!Array.isArray(raw.days) || !raw.days.length || raw.days.some(d => !Number.isInteger(d) || d < 0 || d > 6)) throw new Error('至少选择一个有效的星期');
-  const task = { id, name, enabled: raw.enabled !== false, type: raw.type, value: raw.value, match: raw.match,
+  const task = { id, name, enabled: raw.enabled !== false, type: raw.type, value: raw.value, match: raw.match, source: raw.source || 'browser', currency: raw.currency || '',
     country: raw.country || '', shop: raw.shop || '', period: raw.period, from: raw.from || '', to: raw.to || '',
     days: [...new Set(raw.days)].sort(), time: raw.time };
-  const input = validate({ type: task.type, value: task.value, match: task.match, country: task.country, shop: task.shop, ...resolveDates(task) });
+  const input = validate({ type: task.type, value: task.value, match: task.match, source: task.source, currency: task.currency, country: task.country, shop: task.shop, ...resolveDates(task) });
   for (const key of ['type', 'value', 'match', 'country', 'shop']) task[key] = input[key] || '';
   return task;
 }
@@ -67,6 +67,15 @@ function saveConfig(dataRoot, config) {
   const value = { enabled: config.enabled === true, tasks: config.tasks.map(normalizeTask) };
   if (new Set(value.tasks.map(t => t.id)).size !== value.tasks.length) throw new Error('任务标识重复');
   atomicJson(paths(dataRoot).config, value); return value;
+}
+function scheduleSlots(tasks) {
+  const slots = new Map();
+  for (const task of tasks.filter(task => task.enabled)) {
+    if (!slots.has(task.time)) slots.set(task.time, new Set());
+    for (const day of task.days) slots.get(task.time).add(day);
+  }
+  return [...slots].sort(([a], [b]) => a.localeCompare(b))
+    .map(([time, days]) => ({ time, days: [...days].sort((a, b) => a - b) }));
 }
 function due(task, now) { return task.enabled && task.days.includes(now.getDay()) && task.time === `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`; }
 function nextRun(task, now = new Date()) {
@@ -100,4 +109,4 @@ function snapshot(dataRoot, now = new Date()) {
       nextAt: config.enabled ? nextRun(task, now) : null, latest: runs.find(r => r.taskId === task.id) || null })),
     runs: [...new Map([...active, ...runs.slice(0, 100)].map(r => [r.id, r])).values()] };
 }
-module.exports = { PERIODS, WEEKDAYS, localDate, resolveDates, normalizeTask, atomicJson, paths, readJson, readConfig, saveConfig, due, nextRun, claimSlot, snapshot };
+module.exports = { PERIODS, WEEKDAYS, localDate, resolveDates, normalizeTask, atomicJson, paths, readJson, readConfig, saveConfig, scheduleSlots, due, nextRun, claimSlot, snapshot };

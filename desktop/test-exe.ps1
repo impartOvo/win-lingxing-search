@@ -1,7 +1,8 @@
 ﻿param(
     [string]$AppRoot = (Join-Path $PSScriptRoot '..'),
     [ValidateSet('self-test','smoke-test')][string]$Mode = 'self-test',
-    [string]$ReportPath
+    [string]$ReportPath,
+    [ValidateSet('auto','collect','results','history','logs','automation','mcp')][string]$StartPage = 'auto'
 )
 $ErrorActionPreference = 'Stop'
 $AppRoot = [System.IO.Path]::GetFullPath($AppRoot)
@@ -9,7 +10,8 @@ if (-not $ReportPath) { $ReportPath = Join-Path $env:TEMP ('lingxing-' + [guid]:
 $ReportPath = [System.IO.Path]::GetFullPath($ReportPath)
 if (Test-Path -LiteralPath $ReportPath) { Remove-Item -LiteralPath $ReportPath }
 $testArgs = @('--' + $Mode, '--test-report', ('"' + $ReportPath + '"'))
-$testProcess = Start-Process -FilePath (Join-Path $AppRoot '商品诊断.exe') -ArgumentList $testArgs -WorkingDirectory $AppRoot -WindowStyle Hidden -PassThru
+$testArgs += @('--start-page', $StartPage)
+$testProcess = Start-Process -FilePath (Join-Path $AppRoot 'PulsarFetch.exe') -ArgumentList $testArgs -WorkingDirectory $AppRoot -WindowStyle Hidden -PassThru
 if (-not $testProcess.WaitForExit(60000)) { $testProcess.Kill(); throw 'EXE test timed out' }
 $testProcess.Refresh()
 if ($testProcess.ExitCode -ne 0) { throw ('EXE test failed: ' + $testProcess.ExitCode) }

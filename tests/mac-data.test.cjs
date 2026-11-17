@@ -59,5 +59,5 @@ test('collector worker flushes output and terminates on success and validation f
   assert.match(good.stdout, /--country/);
   const bad = spawnSync(process.execPath, [worker, '--type', 'invalid', '--value', 'demo'], { cwd: root, encoding: 'utf8', timeout: 10000 });
   assert.equal(bad.status, 1);
-  assert.match(bad.stderr, /浏览器版失败/);
+  assert.match(bad.stderr, /采集失败/);
 });

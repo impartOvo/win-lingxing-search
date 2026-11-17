@@ -2,6 +2,10 @@
 
 The MIT license at the repository root applies to the original project code.
 
+- MCP TypeScript SDK (`@modelcontextprotocol/sdk`) v1.32.2: MIT. Official repository and client examples: https://github.com/modelcontextprotocol/typescript-sdk . Its original license and production dependencies' license files remain in the bundled `node_modules/` directories.
+- smol-toml v1.9.1: MIT. Used to parse the user's explicitly imported local MCP configuration. Source: https://github.com/squirrelchat/smol-toml .
+- Ajv v8.20.0: MIT. Used to validate business query parameters against the server's current tool schema. Source: https://github.com/ajv-validator/ajv .
+
 - Node.js v24.21.0: Node.js license, including bundled third-party notices. The Windows release includes `runtime/Node-LICENSE.txt`, sourced from the matching upstream tag: https://github.com/nodejs/node/blob/v24.21.0/LICENSE
 - Playwright / playwright-core v1.65.0: Apache-2.0. The Windows release preserves the packages' LICENSE and NOTICE files in `node_modules/`.
 - .NET Framework / WPF: provided by Windows and installed separately; not bundled in the archive.
