@@ -2,7 +2,9 @@
     [Parameter(Mandatory=$true)][string]$TaskName,
     [Parameter(Mandatory=$true)][string]$LauncherPath,
     [Parameter(Mandatory=$true)][string]$DataRoot,
-    [ValidateSet('enable','disable')][string]$Mode
+    [ValidateSet('enable','disable')][string]$Mode,
+    [ValidateSet('collection','monitor')][string]$Kind = 'collection',
+    [ValidateRange(5,2147483647)][int]$IntervalMinutes = 30
 )
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
@@ -14,6 +16,16 @@ if ($Mode -eq 'disable') {
 }
 foreach ($value in @($LauncherPath,$DataRoot)) { if ($value.Contains('"')) { throw 'Invalid scheduler path' } }
 if (-not (Test-Path -LiteralPath $LauncherPath -PathType Leaf)) { throw 'Scheduler launcher is missing; rebuild or update the application first' }
+if ($Kind -eq 'monitor') {
+    # Run the GUI-subsystem native launcher, independent of collection triggers.
+    $monitorArguments = '--monitor-tick --data "' + $DataRoot.TrimEnd('\') + '"'
+    $monitorAction = New-ScheduledTaskAction -Execute $LauncherPath -Argument $monitorArguments -WorkingDirectory (Split-Path -Parent $LauncherPath)
+    $monitorTrigger = New-ScheduledTaskTrigger -Once -At ([datetime]::Now.AddMinutes(1)) -RepetitionInterval (New-TimeSpan -Minutes $IntervalMinutes)
+    $monitorPrincipal = New-ScheduledTaskPrincipal -UserId ([System.Security.Principal.WindowsIdentity]::GetCurrent().Name) -LogonType Interactive -RunLevel Limited
+    $monitorSettings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -ExecutionTimeLimit ([TimeSpan]::Zero) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+    Register-ScheduledTask -TaskName $TaskName -Action $monitorAction -Trigger $monitorTrigger -Principal $monitorPrincipal -Settings $monitorSettings -Description 'PulsarFetch background monitoring' -Force | Out-Null
+    exit 0
+}
 # A console-subsystem executable (including node.exe or PowerShell) flashes even for an idle tick.
 $taskArguments = '--automation-tick --data "' + $DataRoot.TrimEnd('\') + '"'
 $action = New-ScheduledTaskAction -Execute $LauncherPath -Argument $taskArguments -WorkingDirectory (Split-Path -Parent $LauncherPath)

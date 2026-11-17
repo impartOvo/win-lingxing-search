@@ -15,7 +15,7 @@ function automationFill(task) {
   automationId = task?.id || null;
   $('a-form').reset(); set('a-editor-heading', task ? '编辑任务' : '新建任务');
   $('a-source').value = task?.source || 'browser'; $('a-currency').value = task?.currency || '';
-  for (const key of ['name', 'value', 'country', 'shop', 'from', 'to']) $(`a-${key}`).value = task?.[key] || '';
+  for (const key of ['name', 'group', 'value', 'country', 'shop', 'from', 'to']) $(`a-${key}`).value = task?.[key] || '';
   const types = { ASIN: 'asin', 父ASIN: 'parent_asin', SKU: 'sku', MSKU: 'msku', FNSKU: 'fnsku', SPU: 'spu', 品名: 'name' };
   $('a-type').value = types[task?.type] || 'asin'; $('a-match').value = ['exact', '精确'].includes(task?.match) ? 'exact' : 'fuzzy';
   $('a-time').value = task?.time || '09:00'; $('a-enabled').checked = task?.enabled !== false;
@@ -31,7 +31,7 @@ function automationRender(state) {
   if (automationRunsJSON !== runsJSON) {
     $('a-runs').replaceChildren();
     for (const run of state.runs) {
-      const row = automationCells($('a-runs'), [run.taskName, automationLabel(run.status), automationTime(run.createdAt), `${run.dates.from} — ${run.dates.to}`, run.error || (run.trigger === 'schedule' ? '定时触发' : '手动触发')]);
+      const row = automationCells($('a-runs'), [run.taskName, automationLabel(run.status), automationTime(run.createdAt), `${run.dates.from} — ${run.dates.to}`, run.error || (run.trigger === 'backfill' ? '原计划日期补采' : run.trigger === 'schedule' ? '定时触发' : '手动触发')]);
       const cell = document.createElement('td'); row.append(cell);
       if (run.status === 'ok') automationButton(cell, '查看结果', async () => renderResult(await api.readResult(run.resultName)));
       automationButton(cell, '日志', () => showAutomationLog(run.id));
@@ -67,7 +67,7 @@ $('a-schedule').onclick = guarded(() => automationRequest({ action: 'schedule', 
 $('a-run-all').onclick = guarded(() => automationRequest({ action: 'run' }));
 $('a-form').onsubmit = event => {
   event.preventDefault();
-  const task = Object.fromEntries(['name', 'type', 'value', 'match', 'country', 'shop', 'period', 'from', 'to', 'time', 'source', 'currency'].map(key => [key, $(`a-${key}`).value]));
+  const task = Object.fromEntries(['name', 'group', 'type', 'value', 'match', 'country', 'shop', 'period', 'from', 'to', 'time', 'source', 'currency'].map(key => [key, $(`a-${key}`).value]));
   task.currency = task.currency.trim().toUpperCase();
   task.id = automationId || crypto.randomUUID();
   task.enabled = $('a-enabled').checked;

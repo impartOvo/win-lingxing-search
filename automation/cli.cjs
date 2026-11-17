@@ -6,7 +6,8 @@ const { dispatch } = require('./dispatch.cjs');
 const { register } = require('./platform.cjs');
 const dataIndex = process.argv.indexOf('--data');
 const dataRoot = dataIndex >= 0 ? path.resolve(process.argv[dataIndex + 1]) : require('../shared').DATA_ROOT;
-function execute(request, root = dataRoot, registerSchedule = register) {
+function execute(request, root = dataRoot, registerSchedule = register, dispatchTasks = dispatch) {
+  if (!request || typeof request !== 'object' || Array.isArray(request)) throw new Error('自动化请求无效');
   const previous = core.readConfig(root);
   const config = { ...previous, tasks: [...previous.tasks] };
   function persist(force = false) {
@@ -27,6 +28,13 @@ function execute(request, root = dataRoot, registerSchedule = register) {
   }
   switch (request.action) {
     case 'snapshot': return core.snapshot(root);
+    case 'dashboard': return core.dashboard(root);
+    case 'batch-preview': return core.batchPreview(request);
+    case 'save-batch': {
+      const batch = core.batchPreview(request);
+      config.tasks.push(...batch.tasks);
+      persist(); break;
+    }
     // Product upgrades may rename the executable. Rebind the system launcher
     // without rewriting the user's task definitions or their enabled state.
     case 'sync-schedule': registerSchedule(root, config.enabled, config.tasks); break;
@@ -35,14 +43,25 @@ function execute(request, root = dataRoot, registerSchedule = register) {
       if (index < 0) config.tasks.push(task); else config.tasks[index] = task;
       persist(); break;
     }
+    case 'set-enabled': {
+      if (typeof request.enabled !== 'boolean' || !Array.isArray(request.ids) || !request.ids.length || request.ids.some(id => typeof id !== 'string') || new Set(request.ids).size !== request.ids.length || request.ids.some(id => !config.tasks.some(t => t.id === id))) throw new Error('请选择有效且不重复的任务并指定启停状态');
+      config.tasks = config.tasks.map(task => request.ids.includes(task.id) ? { ...task, enabled: request.enabled } : task);
+      persist(); break;
+    }
     case 'delete-task': config.tasks = config.tasks.filter(t => t.id !== request.id); persist(); break;
     case 'schedule':
       config.enabled = request.enabled === true;
       persist(true);
       break;
     case 'run': {
-      const launched = dispatch(root, { ids: request.ids });
+      const launched = dispatchTasks(root, { ids: request.ids });
       if (!launched.length) throw new Error('没有可运行的任务，请先保存并启用任务');
+      break;
+    }
+    case 'backfill': {
+      if (!Array.isArray(request.ids) || !request.ids.length || request.scheduledDate === undefined) throw new Error('补采必须选择任务和原计划日期');
+      // The dispatch module validates the entire request before launching workers.
+      dispatchTasks(root, { ids: request.ids, scheduledDate: request.scheduledDate });
       break;
     }
     default: throw new Error('不支持的自动化操作');
@@ -52,7 +71,7 @@ function execute(request, root = dataRoot, registerSchedule = register) {
 async function main() {
   if (process.argv[2] === 'tick') { dispatch(dataRoot, { scheduled: true }); return; }
   let input = ''; for await (const chunk of process.stdin) input += chunk;
-  process.stdout.write(JSON.stringify(execute(JSON.parse(input))));
+  process.stdout.write(JSON.stringify(await execute(JSON.parse(input))));
 }
 if (require.main === module) main().catch(error => {
   if (process.argv[2] === 'tick') {

@@ -28,6 +28,7 @@ namespace ProductDiagnosis
             string countries = RunNode(root, new[] { "-e", "process.stdout.write(JSON.stringify(require('./shared').COUNTRIES))" });
             Require(NativeWindow.CountryOptions().SequenceEqual(ReportData.Items(ReportData.Serializer().DeserializeObject(countries)).Select(ReportData.Text)), "两端国家候选不一致。");
             CheckAutomationRunner(root);
+            CheckMonitoringRunner(root);
             string mcpHelp = RunNode(root, new[] { Path.Combine(root, "collector.cjs"), "--help" });
             Require(mcpHelp.Contains("--source") && mcpHelp.Contains("--currency"), "统一采集入口缺失。");
             Require(ReportData.ReadBundle(Path.Combine(root, "examples", "mcp-demo.json")).Rows.Count == 1, "MCP 结果兼容读取失败。");
@@ -73,6 +74,26 @@ namespace ProductDiagnosis
                 if (!process.WaitForExit(20000)) { process.Kill(); throw new TimeoutException("后台入口未退出。"); }
                 return process.ExitCode;
             }
+        }
+
+        private static void CheckMonitoringRunner(string root)
+        {
+            string dataRoot = Path.Combine(root, ".private", "desktop-tests", "monitor-中文 " + Guid.NewGuid().ToString("N"));
+            using (var process = new Process { StartInfo = new ProcessStartInfo {
+                FileName = Path.Combine(root, "PulsarFetch.exe"),
+                Arguments = "--monitor-tick --data " + NativeWindow.QuoteArgument(dataRoot),
+                WorkingDirectory = root, UseShellExecute = false
+            } }) {
+                process.Start();
+                var deadline = DateTime.UtcNow.AddSeconds(20);
+                while (!process.WaitForExit(30)) {
+                    process.Refresh();
+                    Require(process.MainWindowHandle == IntPtr.Zero, "监控后台入口创建了主窗口。");
+                    if (DateTime.UtcNow > deadline) { process.Kill(); throw new TimeoutException("监控后台入口未退出。"); }
+                }
+                Require(process.ExitCode == 0, "默认关闭的监控后台检查失败。");
+            }
+            Require(!Directory.Exists(Path.Combine(dataRoot, "results")), "暂停的监控不应开始采集。");
         }
 
         private static string RunNode(string root, string[] arguments)

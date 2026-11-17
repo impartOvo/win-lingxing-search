@@ -2,12 +2,45 @@
   "appId": "io.github.impartovo.lingxing-search",
   "productName": "PulsarFetch",
   "asar": false,
-  "directories": { "output": "dist-mac", "buildResources": "mac/assets" },
-  "files": ["mac/main.cjs", "mac/collector-worker.cjs", "mac/preload.cjs", "mac/reports.cjs", "mac/ui/**", "automation/**", "mcp/**", "collector.cjs", "browser.js", "crawler.js", "shared.js", "countries.json", "examples/*.json", "LICENSE", "THIRD_PARTY_NOTICES.md", "package.json", "node_modules/**"],
+  "directories": {
+    "output": "dist-mac",
+    "buildResources": "mac/assets"
+  },
+  "files": [
+    "mac/main.cjs",
+    "mac/collector-worker.cjs",
+    "mac/preload.cjs",
+    "mac/reports.cjs",
+    "mac/ui/**",
+    "automation/**",
+    "mcp/**",
+    "collector.cjs",
+    "browser.js",
+    "crawler.js",
+    "shared.js",
+    "countries.json",
+    "examples/*.json",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
+    "package.json",
+    "node_modules/**",
+    "workspace.cjs",
+    "monitoring/**",
+    "data/**"
+  ],
   "extraResources": [
-    { "from": "node_modules/electron/dist/LICENSE", "to": "licenses/Electron-LICENSE.txt" },
-    { "from": "node_modules/electron/dist/LICENSES.chromium.html", "to": "licenses/LICENSES.chromium.html" },
-    { "from": "node_modules/playwright-core/ThirdPartyNotices.txt", "to": "licenses/Playwright-ThirdPartyNotices.txt" }
+    {
+      "from": "node_modules/electron/dist/LICENSE",
+      "to": "licenses/Electron-LICENSE.txt"
+    },
+    {
+      "from": "node_modules/electron/dist/LICENSES.chromium.html",
+      "to": "licenses/LICENSES.chromium.html"
+    },
+    {
+      "from": "node_modules/playwright-core/ThirdPartyNotices.txt",
+      "to": "licenses/Playwright-ThirdPartyNotices.txt"
+    }
   ],
   "mac": {
     "category": "public.app-category.business",
@@ -16,6 +49,8 @@
     "hardenedRuntime": false,
     "notarize": false,
     "icon": "mac/assets/icon.icns",
-    "target": ["dir"]
+    "target": [
+      "dir"
+    ]
   }
 }

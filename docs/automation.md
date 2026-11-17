@@ -39,4 +39,24 @@ Windows 系统任务名称以 `LingxingSearch-Automation-` 开头，末尾的四
 
 Windows 定时运行通过应用 EXE 的无界面入口启动，并隐藏后台 Node 进程，不弹出命令窗口。更新后打开 PulsarFetch 会按保存的任务配置同步系统计划，换用按设定时间触发的入口并移除旧的每分钟检查任务，不重写任务内容与启用状态。同步失败会在任务页显示原因；启动或调度失败写入 `logs/scheduler-error.log`，系统计划任务保留失败退出码。
 
-本功能负责定时采集与结果留档，不自动判断经营好坏或推送消息。DSH 的判读脚本仍是独立参考文件。
+采集任务负责定时采集与结果留档。库存和站内信提醒使用独立的监控设置与后台计划。
+
+## 批量任务与分组
+
+`automation/cli.cjs` 的 `batch-preview` 接受 `{task,values,countries,group}`，按商品与国家组合预览，返回 `{tasks,count}`。重复的商品与国家组合会合并。`save-batch` 校验整个批次后一次保存，保留已有任务标识与字段，返回常规自动化快照；系统计划同步失败时整批恢复。
+
+任务可带 `group` 字段。`set-enabled` 接受 `{ids,enabled}`，一次启停选中任务并同步计划，不修改商品条件；无效标识会使整个操作失败。
+
+## 今日任务与补采
+
+`dashboard` 返回 `{date,expected,success,failed,running,missing,items}`。每个任务的原计划日期与时间构成一次逻辑执行，同次重试按最新记录计一次。`items` 中的状态包括 `success`、`failed`、`running`、`missing`、`future`、`paused`。未到时间为 `future`，暂停的未执行任务为 `paused`，均不计入缺失；暂停后的已有运行仍保留。手动运行不抵扣计划缺失，补采过去日期也不抵扣今天的缺失。今天已执行的原时段不会因编辑或删除任务而消失。
+
+`backfill` 接受 `{ids,scheduledDate:'YYYY-MM-DD'}`，使用本地原计划日期解析相对日期，保存 `trigger='backfill'`、`scheduledDate`、`scheduledTime` 和已冻结的 `dates`。例如补采 2026-01-01 的「前 7 天」固定读取 2025-12-25 至 2025-12-31。不会修改任务定义，也不受采集总开关影响。未来日期、无效日期和所选任务没有计划的星期会在启动任何任务前拒绝。
+
+## 独立后台监控计划
+
+`sync-schedule` 同步采集与监控两类计划。监控间隔来自 `monitoring/core.cjs.getSchedule(dataRoot)`，为启用提供方中的最短间隔，至少 5 分钟。暂停采集不会暂停仍启用的监控。
+
+Windows 使用原采集计划名称附加 `-Monitor` 的独立任务，通过 `PulsarFetch.exe --monitor-tick --data ROOT` 进入后台入口。该任务首次约一分钟后运行，之后按间隔重复，重叠时忽略新实例。原采集计划仍按星期与准确时间运行，并保留并发设置。Mac 使用独立 `-monitor.plist` LaunchAgent，以 `StartInterval` 调用 GUI 可执行文件的相同入口；原采集 LaunchAgent 保留 `StartCalendarInterval`。
+
+监控入口由桌面宿主管理，不需要主窗口保持打开。测试使用临时目录与模拟系统注册，不注册或移除真实计划。

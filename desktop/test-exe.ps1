@@ -2,7 +2,7 @@
     [string]$AppRoot = (Join-Path $PSScriptRoot '..'),
     [ValidateSet('self-test','smoke-test')][string]$Mode = 'self-test',
     [string]$ReportPath,
-    [ValidateSet('auto','collect','results','history','logs','automation','mcp')][string]$StartPage = 'auto'
+    [ValidateSet('auto','collect','results','history','logs','automation','mcp','monitor')][string]$StartPage = 'auto'
 )
 $ErrorActionPreference = 'Stop'
 $AppRoot = [System.IO.Path]::GetFullPath($AppRoot)

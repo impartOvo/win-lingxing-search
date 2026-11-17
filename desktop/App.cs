@@ -30,6 +30,7 @@ namespace ProductDiagnosis
         {
             // Task Scheduler must enter through the GUI-subsystem EXE, before any UI is created.
             if (args.Length > 0 && args[0] == "--automation-tick") return AutomationRunner.Run(Root, args);
+            if (args.Length > 0 && args[0] == "--monitor-tick") return MonitoringRunner.Run(Root, args);
             var options = LaunchOptions.Parse(args);
             int exitCode = 0;
             string failure = null;
@@ -168,6 +169,7 @@ namespace ProductDiagnosis
             InitializeAutomation();
             InitializeMcp();
             InitializeWorkbench();
+            InitializeFeatures();
         }
 
         internal static string[] CountryOptions()
@@ -197,6 +199,7 @@ namespace ProductDiagnosis
             };
             WireAutomationEvents();
             WireWorkbenchEvents();
+            WireFeatureEvents();
             Get<ComboBox>("ResultRowBox").SelectionChanged += delegate { UpdateSelectedReport(); };
             Click("GoCollectButton", () => ShowPage("collect"));
             Click("ShowRunLogButton", () => ShowPage("logs"));
@@ -242,7 +245,7 @@ namespace ProductDiagnosis
             Get<ComboBox>("SourceBox").SelectedIndex = 0;
             Get<ComboBox>("CurrencyBox").SelectedIndex = 0;
             Get<ComboBox>("CountryBox").SelectedIndex = 0;
-            Get<TextBox>("ShopBox").Clear();
+            Get<ComboBox>("ShopBox").Text = "";
             Get<DatePicker>("FromPicker").SelectedDate = null;
             Get<DatePicker>("ToPicker").SelectedDate = null;
             Get<ComboBox>("ResultRowBox").ItemsSource = null;
@@ -265,7 +268,7 @@ namespace ProductDiagnosis
 
         private void ShowPage(string page)
         {
-            foreach (string name in new[] { "CollectPage", "ResultsPage", "HistoryPage", "LogsPage", "AutomationPage", "McpPage" }) Get<UIElement>(name).Visibility = Visibility.Collapsed;
+            foreach (string name in new[] { "CollectPage", "ResultsPage", "HistoryPage", "LogsPage", "AutomationPage", "McpPage", "MonitorPage" }) Get<UIElement>(name).Visibility = Visibility.Collapsed;
             string panel, nav, heading, subtitle;
             switch (page)
             {
@@ -274,6 +277,7 @@ namespace ProductDiagnosis
                 case "logs": panel = "LogsPage"; nav = "NavLogs"; heading = "运行日志"; subtitle = "查看本次采集进度与错误信息"; break;
                 case "automation": panel = "AutomationPage"; nav = "NavAutomation"; heading = "采集任务"; subtitle = "让重复查询，按计划完成。"; break;
                 case "mcp": panel = "McpPage"; nav = "NavMcp"; heading = "连接设置"; subtitle = "同一个数据源，两种采集方式。"; break;
+                case "monitor": panel = "MonitorPage"; nav = "NavMonitor"; heading = "监控与提醒"; subtitle = "关注 FBA 可售库存与售后站内信，按设置的周期静默检查。"; break;
                 default: panel = "CollectPage"; nav = "NavCollect"; heading = "新建采集"; subtitle = "选定数据范围，立即获取或保存为定时任务。"; break;
             }
             Get<UIElement>(panel).Visibility = Visibility.Visible;
@@ -300,7 +304,7 @@ namespace ProductDiagnosis
             Get<ComboBox>("MatchBox").SelectedIndex = match == "精确" || match == "exact" ? 1 : 0;
             string country = ReportData.TextAt(summary, "input", "country");
             Get<ComboBox>("CountryBox").Text = country.Length > 0 ? country : "全部国家";
-            Get<TextBox>("ShopBox").Text = ReportData.TextAt(summary, "input", "shop");
+            Get<ComboBox>("ShopBox").Text = ReportData.TextAt(summary, "input", "shop");
             string[] dates = ReportData.Items(ReportData.Value(summary, "dates")).Select(ReportData.Text).ToArray();
             if (dates.Length == 2)
             {
@@ -369,6 +373,7 @@ namespace ProductDiagnosis
         private void RefreshHistory()
         {
             history = ReportData.History(resultsDirectory);
+            SetComparisonChoices(history);
             Get<DataGrid>("HistoryGrid").ItemsSource = history;
             SetText("HistoryCountText", history.Count + " 次成功采集 · 每次对应一组结果文件");
             Get<Button>("LoadHistoryButton").IsEnabled = history.Count > 0;
@@ -419,7 +424,7 @@ namespace ProductDiagnosis
             if (from.Date > to.Date) { Notice("开始日期不能晚于结束日期。"); return; }
             string country = Get<ComboBox>("CountryBox").Text.Trim();
             if (country == "全部国家") country = "";
-            string shop = Get<TextBox>("ShopBox").Text.Trim();
+            string shop = Get<ComboBox>("ShopBox").Text.Trim();
             if (country.Length > 120 || shop.Length > 120 || (country + shop).IndexOfAny(new[] { '"', '\r', '\n' }) >= 0) { Notice("国家或店铺名称无效（最多 120 字符）。"); return; }
             string script = Path.Combine(root, "collector.cjs");
             if (!File.Exists(Path.Combine(root, "runtime", "node.exe")) || !File.Exists(script) || !Directory.Exists(Path.Combine(root, "node_modules", "playwright"))) { Notice("采集文件不完整，请保留完整的 PulsarFetch 应用文件夹。"); return; }
@@ -514,7 +519,7 @@ namespace ProductDiagnosis
                 timer.Stop();
                 try
                 {
-                    if (options.SmokeTest) { SmokeCheck(); await AutomationSmokeCheck(); await McpSmokeCheck(); }
+                    if (options.SmokeTest) { SmokeCheck(); await AutomationSmokeCheck(); await McpSmokeCheck(); await FeatureSmokeCheck(); }
                     if (options.Preview != null) { if (initialPage == "automation") await WaitAutomationIdle(); SavePreview(options.Preview); }
                     if (options.CollectOnce)
                     {
@@ -583,6 +588,6 @@ namespace ProductDiagnosis
             using (Stream file = File.Create(path)) encoder.Save(file);
         }
 
-        public void Dispose() { runTimer.Stop(); if (automationTimer != null) automationTimer.Stop(); CloseWriters(); if (collector != null) collector.Dispose(); }
+        public void Dispose() { runTimer.Stop(); if (automationTimer != null) automationTimer.Stop(); if (featureTimer != null) featureTimer.Stop(); CloseWriters(); if (collector != null) collector.Dispose(); }
     }
 }

@@ -82,6 +82,7 @@ function resetPage() {
 }
 async function reloadHistory() {
   const state = await api.state();
+  if (typeof loadFeatureHistory === 'function' && api.feature) { await loadFeatureHistory(); return state; }
   set('history-count', `${state.history.length} 次成功采集 · 每次对应一组结果文件`);
   $('history-list').replaceChildren();
   for (const item of state.history) {

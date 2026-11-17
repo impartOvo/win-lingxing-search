@@ -61,7 +61,7 @@ try {
     foreach ($bytes in $pngs) { $writer.Write([byte[]]$bytes) }
 } finally { $writer.Dispose(); $stream.Dispose() }
 
-$references = @('System.dll','System.Core.dll','System.Web.Extensions.dll','System.Xaml.dll','WPF\PresentationFramework.dll','WPF\PresentationCore.dll','WPF\WindowsBase.dll')
+$references = @('System.dll','System.Core.dll','System.Drawing.dll','System.Windows.Forms.dll','System.Web.Extensions.dll','System.Xaml.dll','WPF\PresentationFramework.dll','WPF\PresentationCore.dll','WPF\WindowsBase.dll')
 $arguments = @('/nologo','/target:winexe','/platform:x64','/optimize+','/codepage:65001',('/out:'+(Join-Path $appRoot 'PulsarFetch.exe')),('/win32manifest:'+(Join-Path $PSScriptRoot 'app.manifest')),('/win32icon:'+$iconPath),('/resource:'+(Join-Path $appRoot 'launcher.xaml')+',ProductDiagnosis.launcher.xaml'),('/resource:'+$iconPath+',ProductDiagnosis.app.ico'),('/resource:'+(Join-Path $appRoot 'countries.json')+',ProductDiagnosis.countries.json'))
 foreach ($reference in $references) { $path=Join-Path $framework $reference; if(-not (Test-Path -LiteralPath $path)){throw ('缺少程序集：'+$path)}; $arguments += '/reference:'+$path }
 $arguments += @(Get-ChildItem -LiteralPath $PSScriptRoot -Filter '*.cs' -File | ForEach-Object {$_.FullName})

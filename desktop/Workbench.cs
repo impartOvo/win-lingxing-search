@@ -25,8 +25,8 @@ namespace ProductDiagnosis
         {
             foreach (string name in new[] { "SourceBox", "CurrencyBox", "TypeBox", "MatchBox", "CountryBox" })
                 Get<ComboBox>(name).SelectionChanged += delegate { Window.Dispatcher.BeginInvoke(new Action(UpdateQueryPreview)); };
-            foreach (string name in new[] { "ValueBox", "ShopBox" }) Get<TextBox>(name).TextChanged += delegate { UpdateQueryPreview(); };
-            foreach (string name in new[] { "CountryBox", "CurrencyBox" })
+            foreach (string name in new[] { "ValueBox" }) Get<TextBox>(name).TextChanged += delegate { UpdateQueryPreview(); };
+            foreach (string name in new[] { "CountryBox", "CurrencyBox", "ShopBox" })
                 Get<ComboBox>(name).AddHandler(TextBox.TextChangedEvent, new TextChangedEventHandler(delegate { UpdateQueryPreview(); }));
             Get<ComboBox>("CollectPeriodBox").SelectionChanged += delegate { if (!updatingDates) ApplyCollectPeriod(); };
             foreach (string name in new[] { "FromPicker", "ToPicker" }) Get<DatePicker>(name).SelectedDateChanged += delegate {
@@ -95,7 +95,7 @@ namespace ProductDiagnosis
         private void UpdateQueryPreview()
         {
             string country = Get<ComboBox>("CountryBox").Text;
-            string shop = Get<TextBox>("ShopBox").Text.Trim();
+            string shop = Get<ComboBox>("ShopBox").Text.Trim();
             SetText("QueryPreviewText", "商品  " + (Get<TextBox>("ValueBox").Text.Length > 0 ? Get<TextBox>("ValueBox").Text : "—") +
                 "\n国家  " + (country.Length > 0 ? country : "全部国家") + "\n店铺  " + (shop.Length > 0 ? shop : "全部店铺") +
                 "\n日期  " + DateString("FromPicker") + "\n       — " + DateString("ToPicker") +
@@ -107,7 +107,8 @@ namespace ProductDiagnosis
         {
             var selected = SelectedAutomationTask();
             string id = selected == null ? automationEditId : selected.Id;
-            var rows = workbenchTasks.Where(t => Get<RadioButton>("AutoFilterAll").IsChecked == true ||
+            string group = Get<ComboBox>("AutoGroupFilter").SelectedItem as string;
+            var rows = workbenchTasks.Where(t => string.IsNullOrEmpty(group) || group == "全部任务组" || ReportData.TextAt(t.Raw, "group") == group).Where(t => Get<RadioButton>("AutoFilterAll").IsChecked == true ||
                 (Get<RadioButton>("AutoFilterEnabled").IsChecked == true ? t.Enabled == "启用" : t.Enabled == "停用")).ToList();
             bool previous = automationUpdating; automationUpdating = true;
             try {

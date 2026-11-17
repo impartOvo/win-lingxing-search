@@ -55,7 +55,7 @@ namespace ProductDiagnosis
                 Get<ComboBox>("AutoMatchBox").SelectedIndex = Get<ComboBox>("MatchBox").SelectedIndex;
                 Get<TextBox>("AutoValueBox").Text = Get<TextBox>("ValueBox").Text;
                 Get<ComboBox>("AutoCountryBox").Text = Get<ComboBox>("CountryBox").Text;
-                Get<TextBox>("AutoShopBox").Text = Get<TextBox>("ShopBox").Text;
+                Get<ComboBox>("AutoShopBox").Text = Get<ComboBox>("ShopBox").Text;
                 if (Get<DatePicker>("FromPicker").SelectedDate.HasValue && Get<DatePicker>("ToPicker").SelectedDate.HasValue) {
                     Get<ComboBox>("AutoPeriodBox").SelectedValue = "custom";
                     Get<DatePicker>("AutoFromPicker").SelectedDate = Get<DatePicker>("FromPicker").SelectedDate;
@@ -84,7 +84,8 @@ namespace ProductDiagnosis
             Get<ComboBox>("AutoCurrencyBox").SelectedIndex = 0;
             Get<DataGrid>("AutoTasksGrid").SelectedIndex = -1;
             SetText("AutoEditorHeading", "新建任务");
-            foreach (string name in new[] { "AutoNameBox", "AutoValueBox", "AutoShopBox" }) Get<TextBox>(name).Clear();
+            foreach (string name in new[] { "AutoNameBox", "AutoValueBox", "AutoGroupBox" }) Get<TextBox>(name).Clear();
+            Get<ComboBox>("AutoShopBox").Text = "";
             Get<TextBox>("AutoTimeBox").Text = "09:00";
             Get<ComboBox>("AutoTypeBox").SelectedIndex = 0; Get<ComboBox>("AutoMatchBox").SelectedIndex = 0;
             Get<ComboBox>("AutoCountryBox").SelectedIndex = 0;
@@ -99,10 +100,10 @@ namespace ProductDiagnosis
             string country = Get<ComboBox>("AutoCountryBox").Text.Trim();
             return new {
                 source = SourceValue("AutoSourceBox"), currency = CurrencyValue("AutoCurrencyBox"),
-                id = automationEditId, name = Get<TextBox>("AutoNameBox").Text.Trim(), enabled = Get<CheckBox>("AutoEnabledBox").IsChecked == true,
+                group = Get<TextBox>("AutoGroupBox").Text.Trim(), id = automationEditId, name = Get<TextBox>("AutoNameBox").Text.Trim(), enabled = Get<CheckBox>("AutoEnabledBox").IsChecked == true,
                 type = typeValues[Math.Max(0, Get<ComboBox>("AutoTypeBox").SelectedIndex)], value = Get<TextBox>("AutoValueBox").Text,
                 match = Get<ComboBox>("AutoMatchBox").SelectedIndex == 1 ? "exact" : "fuzzy", country = country == "全部国家" ? "" : country,
-                shop = Get<TextBox>("AutoShopBox").Text, period = Get<ComboBox>("AutoPeriodBox").SelectedValue,
+                shop = Get<ComboBox>("AutoShopBox").Text, period = Get<ComboBox>("AutoPeriodBox").SelectedValue,
                 from = DateString("AutoFromPicker"), to = DateString("AutoToPicker"), time = Get<TextBox>("AutoTimeBox").Text.Trim(),
                 days = Enumerable.Range(0, 7).Where(day => Get<CheckBox>("AutoDay" + day).IsChecked == true).ToArray()
             };
@@ -114,8 +115,9 @@ namespace ProductDiagnosis
             string currency = ReportData.TextAt(task, "currency"); Get<ComboBox>("AutoCurrencyBox").Text = currency.Length > 0 ? currency : "自动";
             automationEditId = ReportData.TextAt(task, "id"); SetText("AutoEditorHeading", "编辑任务");
             Get<TextBox>("AutoNameBox").Text = ReportData.TextAt(task, "name");
+            Get<TextBox>("AutoGroupBox").Text = ReportData.TextAt(task, "group");
             Get<TextBox>("AutoValueBox").Text = ReportData.TextAt(task, "value");
-            Get<TextBox>("AutoShopBox").Text = ReportData.TextAt(task, "shop");
+            Get<ComboBox>("AutoShopBox").Text = ReportData.TextAt(task, "shop");
             Get<TextBox>("AutoTimeBox").Text = ReportData.TextAt(task, "time");
             string type = ReportData.TextAt(task, "type");
             Get<ComboBox>("AutoTypeBox").SelectedIndex = Array.FindIndex(typeLabels, t => t.Replace(" ", "") == type.Replace(" ", ""));
@@ -186,7 +188,7 @@ namespace ProductDiagnosis
             Get<ComboBox>("AutoMatchBox").SelectedIndex = 1;
             Get<TextBox>("AutoValueBox").Text = "中文示例商品";
             Get<ComboBox>("AutoCountryBox").Text = "德国";
-            Get<TextBox>("AutoShopBox").Text = "示例 中文店铺";
+            Get<ComboBox>("AutoShopBox").Text = "示例 中文店铺";
             Get<ComboBox>("AutoPeriodBox").SelectedValue = "yesterday";
             Get<CheckBox>("AutoEnabledBox").IsChecked = false;
             Get<Button>("AutoSaveButton").RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
@@ -260,6 +262,7 @@ namespace ProductDiagnosis
             try {
                 if (automationTasksJson != tasksJson) {
                     workbenchTasks = ReportData.Items(ReportData.Value(state, "tasks")).Select(t => new AutomationTaskRow(t)).ToList();
+                    UpdateGroups();
                     RenderTaskFilter();
                     automationTasksJson = tasksJson;
                 }

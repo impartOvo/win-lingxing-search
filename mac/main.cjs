@@ -1,14 +1,18 @@
 'use strict';
-const { app, BrowserWindow, ipcMain, shell, utilityProcess, Menu, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, utilityProcess, Menu, dialog, Notification } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
 const reports = require('./reports.cjs');
 const automation = require('../automation/cli.cjs');
 const mcp = require('../mcp/cli.cjs');
+const workspace = require('../workspace.cjs');
+const monitoring = require('../monitoring/cli.cjs');
+const { safeError } = require('../mcp/settings.cjs');
 
-const smoke = process.argv.includes('--smoke-test');
-const collectOnce = process.argv.includes('--collect-once');
+const monitorTick = process.argv.includes('--monitor-tick');
+const smoke = !monitorTick && process.argv.includes('--smoke-test');
+const collectOnce = !monitorTick && process.argv.includes('--collect-once');
 const smokeRoot = smoke ? fs.mkdtempSync(path.join(os.tmpdir(), 'lingxing-smoke-')) : null;
 // Keep the established data directory across the product rename.
 app.setPath('userData', path.join(app.getPath('appData'), 'Lingxing Search'));
@@ -20,6 +24,57 @@ const resultRoot = () => path.join(dataRoot(), 'results');
 function send(channel, payload) { if (window && !window.isDestroyed()) window.webContents.send(channel, payload); }
 function log(text) { logs.push(text); if (logs.length > 10000) logs.shift(); send('collector-log', text); }
 function status(text) { stage = text; send('collector-status', { running: !!child, text }); }
+function confinedExport(file) {
+  if (typeof file !== 'string' || !path.isAbsolute(file) || /[\0\r\n]/.test(file) || !/\.(xlsx|csv)$/i.test(file)) throw new Error('请选择有效的导出文件。');
+  const base = path.resolve(dataRoot(), 'exports'), target = path.resolve(file);
+  const inside = (folder, item) => { const relative = path.relative(folder, item); return relative !== '' && !relative.startsWith('..' + path.sep) && relative !== '..' && !path.isAbsolute(relative); };
+  if (!inside(base, target)) throw new Error('只能打开当前数据目录的导出文件。');
+  const actualBase = fs.realpathSync(base), actualTarget = fs.realpathSync(target);
+  if (!inside(fs.realpathSync(dataRoot()), actualBase) || !inside(actualBase, actualTarget) || !fs.statSync(actualTarget).isFile()) throw new Error('导出文件路径无效。');
+  return actualTarget;
+}
+function lingxingTarget(target) {
+  const allowed = new Set(['https://xfg.lingxing.com/erp/EmailService', 'https://xfg.lingxing.com/erp/productExpressionNew']);
+  if (typeof target !== 'string' || !allowed.has(target)) throw new Error('只能打开指定的领星业务页面。');
+  return target;
+}
+async function openTarget(target) { await shell.openExternal(lingxingTarget(target)); }
+function monitorLog(error) {
+  const file = path.join(dataRoot(), '.private', 'monitoring', 'host.log');
+  try { fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 }); fs.appendFileSync(file, new Date().toISOString() + ' ' + safeError(error) + '\n', { mode: 0o600 }); }
+  catch { console.error('后台监控日志写入失败。'); }
+}
+let monitorNotification;
+async function deliverNotifications(state) {
+  const pending = state.pendingNotifications || [];
+  if (!pending.length) return;
+  if (!Notification.isSupported()) { monitorLog(new Error('系统不支持桌面通知；待投递提醒已保留。')); return; }
+  const counts = ['inventory', 'mail', 'error'].map(kind => pending.filter(event => event.kind === kind).length);
+  const body = [`库存 ${counts[0]} 项`, `站内信 ${counts[1]} 项`, `检查错误 ${counts[2]} 项`].join('，') + '。请在工作台查看详情。';
+  monitorNotification = new Notification({ title: `PulsarFetch · ${pending.length} 项监控提醒`, body });
+  monitorNotification.on('click', () => {
+    const targets = [...new Set(pending.map(event => event.target).filter(Boolean))];
+    if (targets.length === 1) openTarget(targets[0]).catch(monitorLog);
+  });
+  const shown = await new Promise(resolve => {
+    const timer = setTimeout(() => { monitorLog(new Error('桌面通知未确认显示，请检查系统通知权限或应用签名；待投递提醒已保留。')); resolve(false); }, 10000);
+    const finish = delivered => { clearTimeout(timer); resolve(delivered); };
+    monitorNotification.once('show', () => finish(true));
+    monitorNotification.once('failed', () => { monitorLog(new Error('桌面通知显示失败，请检查系统通知权限或应用签名；待投递提醒已保留。')); finish(false); });
+    try { monitorNotification.show(); } catch { monitorLog(new Error('桌面通知不可用；待投递提醒已保留。')); finish(false); }
+  });
+  if (!shown) return;
+  await monitoring.execute({ action: 'ack-notifications', ids: pending.map(event => event.id), versions: Object.fromEntries(pending.map(event => [event.id, event.notifyVersion])) }, dataRoot());
+  // Keep the Notification alive briefly so the banner can finish displaying.
+  await new Promise(resolve => setTimeout(resolve, 5000));
+}
+async function runMonitorTick() {
+  const index = process.argv.indexOf('--data'), root = index >= 0 ? process.argv[index + 1] : null;
+  if (typeof root !== 'string' || !path.isAbsolute(root) || /[\0\r\n]/.test(root)) throw new Error('后台监控必须指定有效的绝对数据目录。');
+  app.setPath('userData', path.resolve(root));
+  if (app.dock) app.dock.hide();
+  await deliverNotifications(await monitoring.execute({ action: 'tick' }, dataRoot()));
+}
 
 function runCollector(input, helpOnly = false) {
   if (child) throw new Error('已有采集任务正在运行');
@@ -74,6 +129,9 @@ function runCollector(input, helpOnly = false) {
 }
 
 function registerIPC() {
+  ipcMain.handle('feature', (_, packet) => workspace.execute(packet, dataRoot()));
+  ipcMain.handle('open-export', async (_, file) => { const error = await shell.openPath(confinedExport(file)); if (error) throw new Error(error); });
+  ipcMain.handle('open-target', (_, target) => openTarget(target));
   ipcMain.handle('mcp', (_, request) => mcp.execute(request, dataRoot()));
   ipcMain.handle('automation', (_, request) => automation.execute(request, dataRoot()));
   ipcMain.handle('automation-log', async (_, id) => {
@@ -235,7 +293,11 @@ function finishSmoke(error) {
   app.exit(error ? 1 : 0);
 }
 
-if (!app.requestSingleInstanceLock()) app.quit();
+if (monitorTick) {
+  // A scheduler tick must stay independent of the GUI instance and never focus it.
+  app.whenReady().then(runMonitorTick).then(() => app.exit(0)).catch(error => { monitorLog(error); app.exit(1); });
+}
+else if (!app.requestSingleInstanceLock()) app.quit();
 else {
   app.on('second-instance', () => { if (window && !window.isDestroyed()) { if (window.isMinimized()) window.restore(); window.show(); window.focus(); } else createWindow(); });
   app.whenReady().then(() => {

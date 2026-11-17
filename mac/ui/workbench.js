@@ -48,9 +48,11 @@ function taskInspector() {
   document.querySelectorAll('#a-tasks tr[data-id]').forEach(row => row.setAttribute('aria-selected', String(row.dataset.id === selectedTaskId)));
 }
 function renderTaskWorkbench(state) {
-  const changed = automationTasksJSON !== JSON.stringify(state.tasks) || renderedTaskFilter !== taskFilter;
+  if (typeof updateFeatureGroups === 'function') updateFeatureGroups(state);
+  const group = $('a-group-filter').value;
+  const changed = automationTasksJSON !== JSON.stringify(state.tasks) || renderedTaskFilter !== `${taskFilter}|${group}`;
   if (changed) {
-    const tasks = state.tasks.filter(task => taskFilter === 'all' || (taskFilter === 'enabled' ? task.enabled : !task.enabled));
+    const tasks = state.tasks.filter(task => !group || task.group === group).filter(task => taskFilter === 'all' || (taskFilter === 'enabled' ? task.enabled : !task.enabled));
     if (!tasks.some(task => task.id === selectedTaskId)) selectedTaskId = tasks[0]?.id;
     $('a-tasks').replaceChildren();
     for (const task of tasks) {
@@ -64,7 +66,7 @@ function renderTaskWorkbench(state) {
     }
     if (!tasks.length) { const row = automationCells($('a-tasks'), ['没有符合条件的任务']); row.cells[0].colSpan = 4; }
     set('a-task-count', `${tasks.length} / ${state.tasks.length} 项任务`);
-    automationTasksJSON = JSON.stringify(state.tasks); renderedTaskFilter = taskFilter;
+    automationTasksJSON = JSON.stringify(state.tasks); renderedTaskFilter = `${taskFilter}|${group}`;
   }
   taskInspector();
 }

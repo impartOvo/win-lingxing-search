@@ -6,9 +6,9 @@ $dist = Join-Path $appRoot 'dist'
 $stage = Join-Path $dist ('stage-' + [guid]::NewGuid().ToString('N'))
 $packageRoot = Join-Path $stage 'PulsarFetch'
 New-Item -ItemType Directory -Path $packageRoot -Force | Out-Null
-$files = @('PulsarFetch.exe','PulsarFetch.exe.config','PulsarFetch.cmd','运行对比.cmd','collector.cjs','browser.js','crawler.js','shared.js','countries.json','package.json','package-lock.json','LICENSE','README.md','THIRD_PARTY_NOTICES.md')
+$files = @('PulsarFetch.exe','PulsarFetch.exe.config','PulsarFetch.cmd','运行对比.cmd','collector.cjs','browser.js','crawler.js','shared.js','workspace.cjs','countries.json','package.json','package-lock.json','LICENSE','README.md','THIRD_PARTY_NOTICES.md')
 foreach ($file in $files) { Copy-Item -LiteralPath (Join-Path $appRoot $file) -Destination $packageRoot }
-foreach ($directory in @('examples','docs','automation','mcp')) { Copy-Item -LiteralPath (Join-Path $appRoot $directory) -Destination $packageRoot -Recurse }
+foreach ($directory in @('examples','docs','automation','mcp','monitoring','data')) { Copy-Item -LiteralPath (Join-Path $appRoot $directory) -Destination $packageRoot -Recurse }
 New-Item -ItemType Directory -Path (Join-Path $packageRoot 'runtime'),(Join-Path $packageRoot 'node_modules') | Out-Null
 foreach ($file in @('node.exe','Node-LICENSE.txt')) { Copy-Item -LiteralPath (Join-Path $appRoot ('runtime\' + $file)) -Destination (Join-Path $packageRoot 'runtime') }
 $production = & node -e "const lock=require('./package-lock.json'); for(const [name,p] of Object.entries(lock.packages)) if(name.startsWith('node_modules/') && !p.dev) console.log(name)"

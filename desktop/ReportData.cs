@@ -199,6 +199,8 @@ namespace ProductDiagnosis
 
     public sealed class HistoryRecord
     {
+        public string Quality { get; set; }
+        public string Display { get { return SavedAt + " · " + Value + " · " + Country + " · " + Shop; } }
         public string Source { get; set; }
         public string Currency { get; set; }
         public string SavedAt { get; set; }

@@ -4,7 +4,7 @@ const { StreamableHTTPClientTransport } = require('@modelcontextprotocol/sdk/cli
 const { SSEClientTransport } = require('@modelcontextprotocol/sdk/client/sse.js');
 const Ajv = require('ajv');
 const { safeError } = require('./settings.cjs');
-const ALLOWED = new Set(['customer_review_country_sellers', 'query_product_performance_asin_lists', 'erp_listing']);
+const ALLOWED = new Set(['customer_review_country_sellers', 'query_product_performance_asin_lists', 'erp_listing', 'get_fba_stock_list']);
 function unwrap(result) {
   if (result.isError) throw new Error('MCP 工具返回错误：' + (result.content?.filter(c => c.type === 'text').map(c => c.text).join(' ') || '无详情'));
   let value = result.structuredContent;

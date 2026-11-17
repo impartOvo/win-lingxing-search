@@ -6,6 +6,11 @@ async function execute(request, root = DATA_ROOT) {
     case 'status': return settings.status(root);
     case 'save': return settings.save(root, request);
     case 'import-codex': return settings.importCodex(root);
+    case 'options': {
+      const client = new (require('./client.cjs').LingxingClient)(settings.read(root));
+      try { await client.connect(); return await client.call('customer_review_country_sellers', {}); }
+      finally { await client.close(); }
+    }
     case 'test': {
       const config = settings.read(root);
       const { LingxingClient } = require('./client.cjs');
@@ -22,6 +27,7 @@ async function execute(request, root = DATA_ROOT) {
 }
 let currentRequest = {};
 if (require.main === module) (async () => {
+  console.log = (...args) => console.error(...args);
   let input = ''; for await (const chunk of process.stdin) input += chunk;
   const index = process.argv.indexOf('--data');
   const root = index >= 0 ? require('node:path').resolve(process.argv[index + 1]) : DATA_ROOT;

@@ -45,7 +45,35 @@ function normalizeTask(raw) {
     days: [...new Set(raw.days)].sort(), time: raw.time };
   const input = validate({ type: task.type, value: task.value, match: task.match, source: task.source, currency: task.currency, country: task.country, shop: task.shop, ...resolveDates(task) });
   for (const key of ['type', 'value', 'match', 'country', 'shop']) task[key] = input[key] || '';
+  if (raw.group !== undefined) {
+    if (typeof raw.group !== 'string' || raw.group.trim().length > 120) throw new Error('任务分组最多 120 字符');
+    task.group = raw.group.trim();
+  }
   return task;
+}
+function civilDate(value) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error('计划日期需为 YYYY-MM-DD');
+  const date = new Date(`${value}T12:00:00`);
+  if (!Number.isFinite(date.getTime()) || localDate(date) !== value) throw new Error('计划日期无效');
+  return date;
+}
+function batchPreview({ task, values, countries, group }) {
+  if (!task || typeof task !== 'object' || Array.isArray(task)) throw new Error('任务内容无效');
+  for (const [name, list] of [['商品', values], ['国家', countries]]) {
+    if (!Array.isArray(list) || !list.length || list.some(v => typeof v !== 'string' || !v.trim())) throw new Error(`请填写有效的${name}列表`);
+  }
+  if (group !== undefined && (typeof group !== 'string' || group.trim().length > 120)) throw new Error('任务分组最多 120 字符');
+  // Validate every expanded task before the caller writes a single byte.
+  const tasks = [], keys = new Set();
+  for (const value of values) for (const country of countries) {
+    const expanded = normalizeTask({ ...task, id: undefined, value, country, ...(group !== undefined ? { group } : {}) });
+    const key = JSON.stringify([expanded.value, expanded.country]);
+    if (keys.has(key)) continue;
+    keys.add(key);
+    expanded.name = `${String(task.name || '').trim()} · ${expanded.value} · ${expanded.country}`.slice(0, 120);
+    tasks.push(expanded);
+  }
+  return { tasks, count: tasks.length };
 }
 function atomicJson(file, data) {
   fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
@@ -54,6 +82,7 @@ function atomicJson(file, data) {
   finally { if (fs.existsSync(tmp)) fs.unlinkSync(tmp); }
 }
 function paths(dataRoot) {
+  if (typeof dataRoot !== 'string' || !path.isAbsolute(dataRoot) || /[\0\r\n]/.test(dataRoot)) throw new Error('数据目录必须为有效的绝对路径');
   const base = path.join(dataRoot, '.private', 'automation');
   return { base, config: path.join(base, 'tasks.json'), runs: path.join(base, 'runs'), slots: path.join(base, 'slots'), logs: path.join(base, 'logs') };
 }
@@ -109,4 +138,31 @@ function snapshot(dataRoot, now = new Date()) {
       nextAt: config.enabled ? nextRun(task, now) : null, latest: runs.find(r => r.taskId === task.id) || null })),
     runs: [...new Map([...active, ...runs.slice(0, 100)].map(r => [r.id, r])).values()] };
 }
-module.exports = { PERIODS, WEEKDAYS, localDate, resolveDates, normalizeTask, atomicJson, paths, readJson, readConfig, saveConfig, scheduleSlots, due, nextRun, claimSlot, snapshot };
+function dashboard(dataRoot, now = new Date()) {
+  const state = snapshot(dataRoot, now), date = localDate(now), p = paths(dataRoot);
+  // Use the full history: snapshot intentionally limits the UI's recent run list.
+  const runs = fs.existsSync(p.runs) ? fs.readdirSync(p.runs).filter(n => n.endsWith('.json')).map(n => readJson(path.join(p.runs, n))).filter(Boolean) : [];
+  const result = { date, expected: 0, success: 0, failed: 0, running: 0, missing: 0, items: [] };
+  const occurrences = new Map(state.tasks.filter(t => t.days.includes(now.getDay())).map(task => [JSON.stringify([task.id, task.time]), { task, runs: [] }]));
+  for (const run of runs.filter(run => ['schedule', 'backfill'].includes(run.trigger) && (run.scheduledDate || localDate(new Date(run.createdAt))) === date)) {
+    const current = state.tasks.find(task => task.id === run.taskId), time = run.scheduledTime || run.task?.time || current?.time;
+    if (!time || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) continue;
+    const key = JSON.stringify([run.taskId, time]);
+    if (!occurrences.has(key)) occurrences.set(key, { task: { ...run.task, id: run.taskId, name: run.taskName || run.task?.name || current?.name || '已删除任务', time }, runs: [] });
+    occurrences.get(key).runs.push(run);
+  }
+  for (const { task, runs: matches } of occurrences.values()) {
+    const [hour, minute] = task.time.split(':').map(Number), at = shift(now, 0); at.setHours(hour, minute, 0, 0);
+    matches.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)) || String(b.id).localeCompare(String(a.id)));
+    const run = matches[0];
+    let status;
+    if (run) status = run.status === 'ok' ? 'success' : run.status === 'error' ? 'failed' : ['starting', 'running'].includes(run.status) ? 'running' : 'missing';
+    else status = !state.enabled || !task.enabled ? 'paused' : at > now ? 'future' : 'missing';
+    if (run || task.enabled && state.enabled) result.expected++;
+    // Existing runs remain visible when the collection scheduler is subsequently paused.
+    if (['success', 'failed', 'running', 'missing'].includes(status) && (run || task.enabled && state.enabled)) result[status]++;
+    result.items.push({ taskId: task.id, name: task.name, time: task.time, state: status, runId: run?.id || null, dates: run?.dates || resolveDates(task, now) });
+  }
+  return result;
+}
+module.exports = { PERIODS, WEEKDAYS, localDate, civilDate, batchPreview, dashboard, resolveDates, normalizeTask, atomicJson, paths, readJson, readConfig, saveConfig, scheduleSlots, due, nextRun, claimSlot, snapshot };

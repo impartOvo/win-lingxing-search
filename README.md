@@ -33,16 +33,21 @@ PulsarFetch 将商品查询变成可重复运行的采集任务：选定商品�
 | **运行可追溯** | 任务详情展示最近状态、耗时、下次执行及错误，支持查看结果与日志 |
 | **数据可交付** | 销售、流量、退货退款、广告、库存和响应附带的关联 MSKU；保留来源与查询条件 |
 | **本地工作空间** | 历史结果保存在本机，可查看采集信息和原始 JSON，再交给自己的分析工具 |
+| **批量与补采** | 按商品 × 国家预览批量计划，按任务组启停，按原计划日期补采 |
+| **导出与核对** | 筛选历史，导出 Excel / CSV；查看单日归档、同口径跨期比较与质量提示 |
+| **库存与站内信** | FBA 可售库存低于自设阈值、售后邮件待回复或超时时，在本机提醒 |
 
 采集内容为领星「产品表现」的所选期间汇总，字段取决于账号权限与实际响应。应用负责采集、展示和留档，经营分析由使用者或接收文件的 AI 完成。[查看数据口径 →](docs/data-format.md)
 
+v1.5.0 新增批量计划、数据导出与本机监控。[监控与导出使用说明 →](docs/monitoring.md)
+
 ## 下载安装
 
-| 平台 | v1.4.0 安装包 | 启动方式 |
+| 平台 | v1.5.0 安装包 | 启动方式 |
 | :--- | :--- | :--- |
-| Windows x64 | [下载 ZIP](https://github.com/impartOvo/win-lingxing-search/releases/download/v1.4.0/PulsarFetch-1.4.0-windows-x64.zip) | 完整解压后运行 `PulsarFetch.exe` |
-| macOS · Apple 芯片 | [下载 ARM64 ZIP](https://github.com/impartOvo/win-lingxing-search/releases/download/v1.4.0/PulsarFetch-1.4.0-mac-arm64.zip) | 将 `PulsarFetch.app` 放到固定位置后打开 |
-| macOS · Intel | [下载 x64 ZIP](https://github.com/impartOvo/win-lingxing-search/releases/download/v1.4.0/PulsarFetch-1.4.0-mac-x64.zip) | 将 `PulsarFetch.app` 放到固定位置后打开 |
+| Windows x64 | [下载 ZIP](https://github.com/impartOvo/win-lingxing-search/releases/download/v1.5.0/PulsarFetch-1.5.0-windows-x64.zip) | 完整解压后运行 `PulsarFetch.exe` |
+| macOS · Apple 芯片 | [下载 ARM64 ZIP](https://github.com/impartOvo/win-lingxing-search/releases/download/v1.5.0/PulsarFetch-1.5.0-mac-arm64.zip) | 将 `PulsarFetch.app` 放到固定位置后打开 |
+| macOS · Intel | [下载 x64 ZIP](https://github.com/impartOvo/win-lingxing-search/releases/download/v1.5.0/PulsarFetch-1.5.0-mac-x64.zip) | 将 `PulsarFetch.app` 放到固定位置后打开 |
 
 [全部版本与 SHA256 校验文件](https://github.com/impartOvo/win-lingxing-search/releases) · [更新记录](docs/release-notes.md)
 
@@ -117,6 +122,19 @@ Windows 需要 .NET Framework 4.8 / 4.8.1；Mac 需要 macOS 13 或以上。安�
 点击「设为定时任务」，确认通道为 MCP，保存任务名称、日期范围、星期及时间，再开启「定时运行」。已有任务也可以通过「修改采集条件」切换通道并保存；只保存连接不会改变旧任务。
 
 完整授权、数据口径、限流及凭据存储说明见 [MCP 客户端文档](docs/mcp-client.md)。
+
+## 库存与售后邮件提醒
+
+在「监控与提醒」中保存规则并启用后台监控。新监控默认关闭，已有采集任务继续沿用原设置。
+
+| 监控对象 | 触发条件 | 默认检查间隔 |
+| :--- | :--- | :--- |
+| FBA 可售库存 | 每个店铺的 MSKU / FNSKU 可售量严格小于自设阈值 | 30 分钟 |
+| 售后邮件 → 站内信 | 领星统计存在待回复或超时邮件，按店铺提醒数量 | 5 分钟 |
+
+检查间隔和重复提醒间隔均可设置。站内信复用软件保存的浏览器登录，点击提醒后在领星查看、回复；库存使用 MCP 授权。提醒保存在本机，支持已查看、稍后提醒和恢复状态。关闭窗口后仍由独立系统计划运行，电脑需开机、登录且未休眠，并允许系统通知。
+
+历史结果支持条件筛选、Excel 三工作表与 CSV 导出；单日归档保留通道、粒度、币种和采集时间，跨期比较先检查范围及日期兼容性。[完整使用说明 →](docs/monitoring.md)
 
 ## 定时采集
 
@@ -231,13 +249,14 @@ npm run mac:pack -- --arm64 --dir
 
 </details>
 
-v1.4.0 的 Windows x64、Mac ARM64、Mac x64 发布构建、自检和解压检查均已通过；公共逻辑有 27 项回归测试。云端使用合成数据，Mac 真实账号采集与系统定时仍需实机验证。源码后续提交与已发布安装包分别管理，普通 push 不会改写已有 Release。
+公共逻辑有 **64 项回归测试**；发布工作流分别构建 Windows x64、Mac ARM64 和 Mac x64，并验证原生界面及解压后的应用，通过后统一上传安装包与 SHA256 校验文件。云端测试使用合成数据，Mac 真实账号采集、系统定时和通知权限仍需实机验证。
 
 ## 文档与支持
 
 | 想做什么 | 查看文档 |
 | :--- | :--- |
 | 配置 MCP、理解权限和数据口径 | [MCP 客户端](docs/mcp-client.md) |
+| 设置库存、售后邮件提醒与导出 | [监控与导出](docs/monitoring.md) |
 | 设置任务、日期、星期与并发 | [自动化说明](docs/automation.md) |
 | 理解字段与结果配对 | [数据格式](docs/data-format.md) |
 | 把采集数据交给 AI | [AI 工作流](docs/ai-workflow.md) |
