@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="320" viewBox="0 0 1280 320" role="img" aria-label="PulsarFetch — Product Data Collector">
+<defs><radialGradient id="glow"><stop stop-color="#1c454b"/><stop offset="1" stop-color="#111315"/></radialGradient></defs>
+<rect width="1280" height="320" rx="16" fill="#111315"/><circle cx="1050" cy="150" r="280" fill="url(#glow)"/>
+<g fill="none" stroke="#2b353a"><path d="M0 270h1280M0 50h1280"/><ellipse cx="1030" cy="155" rx="220" ry="78" transform="rotate(-30 1030 155)"/><ellipse cx="1030" cy="155" rx="150" ry="54" transform="rotate(-30 1030 155)"/></g>
+<g transform="translate(82 91)" fill="none"><ellipse cx="34" cy="34" rx="32" ry="19" transform="rotate(-30 34 34)" stroke="#63d8e6" stroke-width="2"/><path d="m34 0 4 27 30 7-30 4-4 30-4-30L0 34l30-4Z" fill="#63d8e6"/></g>
+<text x="177" y="143" fill="#e9ebef" font-family="Segoe UI,Arial,sans-serif" font-size="56" font-weight="600" letter-spacing="-2">PulsarFetch</text>
+<text x="84" y="203" fill="#929aa6" font-family="Segoe UI,Arial,sans-serif" font-size="17" letter-spacing="4">PRODUCT DATA COLLECTOR</text>
+<text x="84" y="242" fill="#63d8e6" font-family="Segoe UI,Arial,sans-serif" font-size="13" letter-spacing="2">CONNECT  /  SCHEDULE  /  COLLECT</text>
+<g transform="translate(995 120)"><path d="m35-30 5 57 60 8-60 6-5 59-7-59-58-6 58-8Z" fill="#63d8e6"/><circle cx="35" cy="35" r="12" fill="#e9fbff"/></g></svg>
