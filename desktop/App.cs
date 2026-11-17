@@ -523,7 +523,7 @@ namespace ProductDiagnosis
                         if (collector == null) throw new InvalidOperationException(Get<TextBlock>("FormNotice").Text);
                     }
                 }
-                catch (Exception error) { TestFailure = error.Message; }
+                catch (Exception error) { TestFailure = error.ToString(); }
                 if (options.SmokeTest || TestFailure != null) Window.Close();
             };
             timer.Start();
