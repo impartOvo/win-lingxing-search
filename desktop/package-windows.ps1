@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 $appRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $version = (& node (Join-Path $appRoot 'scripts\release-version.cjs')).Trim()
 if ($LASTEXITCODE -ne 0) { throw 'Release version validation failed' }
