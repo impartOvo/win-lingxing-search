@@ -29,6 +29,8 @@ namespace ProductDiagnosis
             return value == null ? "" : Convert.ToString(value, CultureInfo.InvariantCulture);
         }
 
+        internal static string ProductFilterLabel(string value) { return string.IsNullOrEmpty(value) ? "全部商品" : value; }
+
         internal static string TextAt(object source, params string[] path) { return Text(Value(source, path)); }
 
         internal static IEnumerable<object> Items(object value)
@@ -164,7 +166,7 @@ namespace ProductDiagnosis
                     string shop = TextAt(summary, "input", "shop");
                     rows.Add(new HistoryRecord {
                         SavedAt = DateTimeOffset.Parse(TextAt(summary, "fetchedAt"), CultureInfo.InvariantCulture).ToLocalTime().ToString("yyyy-MM-dd HH:mm"),
-                        Type = TextAt(summary, "input", "type"), Value = TextAt(summary, "input", "value"),
+                        Type = TextAt(summary, "input", "type"), Value = ProductFilterLabel(TextAt(summary, "input", "value")),
                         Source = TextAt(summary, "method") == "mcp" ? "MCP" : "浏览器", Currency = TextAt(summary, "input", "currency").Length > 0 ? TextAt(summary, "input", "currency") : "见记录",
                         Country = country.Length > 0 ? country : "全部国家", Shop = shop.Length > 0 ? shop : "全部店铺",
                         Dates = string.Join(" — ", Items(Value(summary, "dates")).Select(Text)),

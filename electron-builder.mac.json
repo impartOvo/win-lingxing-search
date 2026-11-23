@@ -26,7 +26,8 @@
     "node_modules/**",
     "workspace.cjs",
     "monitoring/**",
-    "data/**"
+    "data/**",
+    "mac/preferences.cjs"
   ],
   "extraResources": [
     {

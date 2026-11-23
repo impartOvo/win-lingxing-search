@@ -17,8 +17,10 @@ async function host(t, options = {}) {
   Object.assign(app, { getPath: key => paths[key], setPath: (key, value) => { paths[key] = value; }, setName() {},
     whenReady: () => Promise.resolve(), requestSingleInstanceLock: () => { calls.locks++; return true; },
     exit: code => { calls.exit = code; }, quit: () => { calls.exit = 0; }, dock: { hide: () => { calls.dockHidden = true; } }, isPackaged: false });
+  const instances = [], trays = [];
   class BrowserWindow extends EventEmitter {
-    constructor() { super(); calls.windows++; this.webContents = new EventEmitter(); this.webContents.setWindowOpenHandler = () => {}; this.webContents.send = () => {}; }
+    constructor() { super(); calls.windows++; instances.push(this); this.visible = true; this.webContents = new EventEmitter(); this.webContents.setWindowOpenHandler = () => {}; this.webContents.send = () => {}; }
+    hide() { this.visible = false; } show() { this.visible = true; } focus() {} isMinimized() { return false; } restore() {}
     loadFile() {} isDestroyed() { return false; }
     static getAllWindows() { return []; }
   }
@@ -30,7 +32,9 @@ async function host(t, options = {}) {
       if (options.delivery !== 'timeout') queueMicrotask(() => this.emit(options.delivery === 'failed' ? 'failed' : 'show'));
     }
   }
-  const electron = { app, BrowserWindow, Notification, ipcMain: { handle: (name, fn) => handlers.set(name, fn) },
+  class Tray extends EventEmitter { constructor() { super(); if(options.trayFailure) throw new Error('Tray unavailable'); trays.push(this); } setToolTip() {} setContextMenu(menu) { this.menu = menu; } destroy() { this.destroyed = true; } }
+  app.dock.show = () => {};
+  const electron = { app, BrowserWindow, Notification, Tray, nativeImage:{createFromPath:()=>({isEmpty:()=>false,setTemplateImage(){}})}, ipcMain: { handle: (name, fn) => handlers.set(name, fn) },
     shell: { openPath: async file => { calls.paths.push(file); return ''; }, openExternal: async target => { calls.targets.push(target); } },
     utilityProcess: { fork: () => { calls.collector++; throw new Error('collector must not launch'); } },
     Menu: { setApplicationMenu() {}, buildFromTemplate: value => value }, dialog: { showErrorBox: () => { calls.dialogs++; } } };
@@ -39,7 +43,7 @@ async function host(t, options = {}) {
     if (options.tickError) throw new Error('synthetic tick failure');
     return { pendingNotifications: options.pending || [] };
   } };
-  const mocks = { electron, './reports.cjs': {}, '../automation/cli.cjs': { execute() { throw new Error('must not register schedules'); } }, '../mcp/cli.cjs': {},
+  const mocks = { electron, './preferences.cjs': require('../mac/preferences.cjs'), './reports.cjs': {}, '../automation/cli.cjs': { execute() { throw new Error('must not register schedules'); } }, '../mcp/cli.cjs': {},
     '../workspace.cjs': { execute: async (packet, dataRoot) => { calls.features.push({ packet, root: dataRoot }); return { ok: true }; } },
     '../monitoring/cli.cjs': monitoring, '../mcp/settings.cjs': { safeError: error => error.message } };
   const argv = ['electron', 'mac/main.cjs', ...(options.args || [])].map(value => value === '$ROOT' ? root : value);
@@ -47,7 +51,7 @@ async function host(t, options = {}) {
     process: { argv, env: {}, platform: 'darwin', arch: 'x64' }, console, URL,
     setTimeout: (fn, ms) => setTimeout(fn, Math.min(ms, 10)), clearTimeout }, { filename: 'mac/main.cjs' });
   await new Promise(resolve => setImmediate(resolve));
-  return { root, userData, calls, handlers, paths, wait: async () => {
+  return { root, userData, calls, handlers, paths, app, instances, trays, wait: async () => {
     const until = Date.now() + 1000;
     while (calls.exit === null && Date.now() < until) await new Promise(resolve => setTimeout(resolve, 5));
     assert.notEqual(calls.exit, null, 'background host must exit');
@@ -112,4 +116,27 @@ test('background errors are logged without dialogs or GUI lock; empty state exit
   }
   const empty = await host(t, { args: ['--monitor-tick', '--data', '$ROOT'] }); await empty.wait();
   assert.equal(empty.calls.exit, 0); assert.equal(empty.calls.notifications.length, 0); assert.equal(empty.calls.monitoring.length, 1);
+});
+
+test('background preference persists, hides/restores window, disables tray and allows explicit quit', async t => {
+  const h=await host(t), request=h.handlers.get('preferences'), win=h.instances[0];
+  assert.equal(request(null,{action:'read'}).closeToTray,false);
+  const close=()=>{let cancelled=false;win.emit('close',{preventDefault(){cancelled=true;}});return cancelled;};
+  assert.equal(close(),false);
+  request(null,{action:'save',closeToTray:true});
+  assert.equal(require('../mac/preferences.cjs').read(h.userData).closeToTray,true);
+  assert.equal(close(),true);assert.equal(win.visible,false);
+  h.trays[0].menu[0].click();assert.equal(win.visible,true);
+  h.app.emit('before-quit',{preventDefault(){throw new Error('idle quit must be allowed');}});
+  assert.equal(close(),false);h.app.emit('will-quit');assert.equal(h.trays[0].destroyed,true);
+  const other=await host(t);other.handlers.get('preferences')(null,{action:'save',closeToTray:true});
+  other.handlers.get('preferences')(null,{action:'save',closeToTray:false});assert.equal(other.trays[0].destroyed,true);
+  assert.throws(()=>other.handlers.get('preferences')(null,{action:'save',closeToTray:'yes'}));
+});
+
+test('tray creation failure never persists a hidden-window preference', async t => {
+  const h=await host(t,{trayFailure:true});
+  assert.throws(()=>h.handlers.get('preferences')(null,{action:'save',closeToTray:true}),/Tray unavailable/);
+  assert.equal(h.handlers.get('preferences')(null,{action:'read'}).closeToTray,false);
+  assert.equal(require('../mac/preferences.cjs').read(h.userData).closeToTray,false);
 });

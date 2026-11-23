@@ -87,7 +87,7 @@ async function reloadHistory() {
   $('history-list').replaceChildren();
   for (const item of state.history) {
     const tr = document.createElement('tr');
-    for (const text of [new Date(item.fetchedAt).toLocaleString('zh-CN'), `${item.input.type} · ${item.input.value}`, `${item.input.country || '全部国家'} · ${item.input.shop || '全部店铺'}`, (item.dates || []).join(' — '), `${item.source} · ${item.currency || '见记录'}`, item.count]) { const td = document.createElement('td'); td.textContent = String(text); tr.append(td); }
+    for (const text of [new Date(item.fetchedAt).toLocaleString('zh-CN'), `${item.input.type} · ${item.input.value || '全部商品'}`, `${item.input.country || '全部国家'} · ${item.input.shop || '全部店铺'}`, (item.dates || []).join(' — '), `${item.source} · ${item.currency || '见记录'}`, item.count]) { const td = document.createElement('td'); td.textContent = String(text); tr.append(td); }
     const cell = document.createElement('td'), button = document.createElement('button'); button.textContent = '查看'; button.onclick = guarded(async () => renderResult(await api.readResult(item.name))); cell.append(button); tr.append(cell); $('history-list').append(tr);
   }
   return state;

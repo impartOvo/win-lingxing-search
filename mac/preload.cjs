@@ -1,6 +1,8 @@
 'use strict';
 const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('desktop', {
+  preferences: request => ipcRenderer.invoke('preferences', request),
+  onShowPage: callback => { ipcRenderer.on('show-page', (_, page) => callback(page)); },
   state: () => ipcRenderer.invoke('app-state'),
   readResult: name => ipcRenderer.invoke('read-result', name),
   collect: input => ipcRenderer.invoke('collect', input),

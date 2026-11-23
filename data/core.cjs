@@ -61,14 +61,16 @@ function scope(b) {
   const s=b.summary, i=b.item;
   // Pagination offsets/page sizes are acquisition mechanics, never business scope.
   const f=s.requestFilters, list=value=>Array.isArray(value)?value.map(String).sort():value==null?null:String(value).split(',').sort();
-  const actual=f ? {mids:list(f.mids),sids:list(f.sids),search_field:f.search_field ?? null} : null;
-  return JSON.stringify([i.source,i.country,i.shop,actual,grain(b),s.input?.match ?? null,s.resolved?.identifiers?.slice().sort() ?? null]);
+  const unfiltered = allShopProducts(b);
+  const actual=f ? {mids:list(f.mids),sids:list(f.sids),search_field:unfiltered ? null : f.search_field ?? null} : null;
+  return JSON.stringify([i.source,i.country,i.shop,actual,grain(b),unfiltered ? null : s.input?.match ?? null,s.resolved?.identifiers?.slice().sort() ?? null]);
 }
+function allShopProducts(bundle) { return bundle.summary.input?.value === '' && Boolean(bundle.item.shop); }
 function conditions(b) { return JSON.stringify([scope(b),b.item.type,b.item.value,b.item.from,b.item.to]); }
 function quality(b) {
   const warnings = [], {item,rows,summary}=b;
   if (!item.savedAt || !Number.isFinite(Date.parse(item.savedAt))) warnings.push('缺少有效采集时间');
-  if (!item.type || !item.value) warnings.push('缺少查询类型或查询值');
+  if (!item.type || (!item.value && !allShopProducts(b))) warnings.push('缺少查询类型或查询值');
   if (rows.some(r=>!identity(b,r))) warnings.push('部分记录缺少对应粒度的商品标识');
   if (rows.some(r=>!r.currency_code)) warnings.push('部分记录缺少实际币种');
   if (item.currencies.length>1) warnings.push('包含多种币种，禁止跨币种合计');
@@ -123,7 +125,8 @@ function daily(root) {
 function compare(root,leftName,rightName) {
   const a=read(root,leftName), b=read(root,rightName), warnings=[];
   if(scope(a)!==scope(b)) warnings.push('来源、国家店铺范围、匹配条件或统计粒度不一致');
-  if(!a.item.type || !b.item.type || !a.item.value || a.item.type!==b.item.type || a.item.value!==b.item.value) warnings.push('查询商品条件不一致或缺失');
+  if(!a.item.type || !b.item.type || a.item.type!==b.item.type ||
+    !(allShopProducts(a) && allShopProducts(b)) && (!a.item.value || a.item.value!==b.item.value)) warnings.push('查询商品条件不一致或缺失');
   const days=x=>(Date.parse(x.item.to)-Date.parse(x.item.from))/86400000+1;
   if(days(a)!==days(b)) warnings.push('日期区间天数不一致');
   if(a.item.from<=b.item.to && b.item.from<=a.item.to) warnings.push('日期区间重叠，不能作为独立期间对比');

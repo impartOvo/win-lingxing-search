@@ -18,7 +18,7 @@ namespace ProductDiagnosis
         private bool featureBusy, monitoringBusy, monitorRefreshing, scopeLoading;
         private int monitorRevision;
         private DispatcherTimer featureTimer;
-        private object FeatureCall(string module, object request) { return MonitoringRunner.Call(root, automationDataRoot, new { module, request }); }
+        private object FeatureCall(string module, object request) { EnsureSessionActive(); return MonitoringRunner.Call(root, automationDataRoot, new { module, request }); }
         private static Dictionary<string, object> CopyObject(object value) { return value == null ? new Dictionary<string, object>() : (Dictionary<string, object>)ReportData.Serializer().DeserializeObject(ReportData.Serializer().Serialize(value)); }
         private static string[] Lines(string text) { return text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).Where(s => s.Length > 0).Distinct().ToArray(); }
         private string Text(string name) { return Get<TextBox>(name).Text.Trim(); }
@@ -33,8 +33,11 @@ namespace ProductDiagnosis
             Get<ComboBox>("AutoGroupFilter").ItemsSource = new[] { "全部任务组" }; Get<ComboBox>("AutoGroupFilter").SelectedIndex = 0;
             Get<DatePicker>("BackfillDatePicker").SelectedDate = DateTime.Today;
             featureTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(15) };
-            featureTimer.Tick += delegate { if (Get<UIElement>("MonitorPage").Visibility == Visibility.Visible) RefreshMonitor(); if (Get<UIElement>("AutomationPage").Visibility == Visibility.Visible) RefreshDashboard(); };
-            featureTimer.Start();
+            featureTimer.Tick += delegate {
+                if (!CanRefreshVisibleWindow) return;
+                if (Get<UIElement>("MonitorPage").IsVisible) RefreshMonitor();
+                if (Get<UIElement>("AutomationPage").IsVisible) RefreshDashboard();
+            };
         }
         private void WireFeatureEvents()
         {
@@ -138,7 +141,7 @@ namespace ProductDiagnosis
             try {
                 object filters = new { search = Text("HistorySearchBox"), country = Text("HistoryCountryBox"), shop = Text("HistoryShopBox"), source = Get<ComboBox>("HistorySourceBox").SelectedIndex == 1 ? "browser" : Get<ComboBox>("HistorySourceBox").SelectedIndex == 2 ? "mcp" : "", from = DateString("HistoryFromPicker"), to = DateString("HistoryToPicker") };
                 object result = await Task.Run(() => FeatureCall("data", new { action = "history", filters }));
-                var rows = ReportData.Items(ReportData.Value(result, "items")).Select(raw => new HistoryRecord { Path = Path.Combine(resultsDirectory, ReportData.TextAt(raw, "name")), SavedAt = AutomationTime(ReportData.TextAt(raw, "savedAt")), Type = ReportData.TextAt(raw, "type"), Value = ReportData.TextAt(raw, "value"), Country = ReportData.TextAt(raw, "country"), Shop = ReportData.TextAt(raw, "shop"), Dates = ReportData.TextAt(raw, "from") + " — " + ReportData.TextAt(raw, "to"), Source = ReportData.TextAt(raw, "source") == "mcp" ? "MCP" : "浏览器", Currency = ReportData.TextAt(raw, "currency"), Count = ReportData.Number(ReportData.Value(raw, "count")), Quality = string.Join("；", ReportData.Items(ReportData.Value(raw, "quality", "warnings")).Select(ReportData.Text)) }).ToList();
+                var rows = ReportData.Items(ReportData.Value(result, "items")).Select(raw => new HistoryRecord { Path = Path.Combine(resultsDirectory, ReportData.TextAt(raw, "name")), SavedAt = AutomationTime(ReportData.TextAt(raw, "savedAt")), Type = ReportData.TextAt(raw, "type"), Value = ReportData.ProductFilterLabel(ReportData.TextAt(raw, "value")), Country = ReportData.TextAt(raw, "country"), Shop = ReportData.TextAt(raw, "shop"), Dates = ReportData.TextAt(raw, "from") + " — " + ReportData.TextAt(raw, "to"), Source = ReportData.TextAt(raw, "source") == "mcp" ? "MCP" : "浏览器", Currency = ReportData.TextAt(raw, "currency"), Count = ReportData.Number(ReportData.Value(raw, "count")), Quality = string.Join("；", ReportData.Items(ReportData.Value(raw, "quality", "warnings")).Select(ReportData.Text)) }).ToList();
                 Get<DataGrid>("HistoryGrid").ItemsSource = rows; SetComparisonChoices(rows); if (rows.Any()) Get<DataGrid>("HistoryGrid").SelectedIndex = 0;
                 SetText("HistoryCountText", rows.Count + " 次采集符合当前条件"); Get<Button>("LoadHistoryButton").IsEnabled = rows.Any(); SetText("HistoryFeatureNotice", "");
             } catch (Exception error) { SetText("HistoryFeatureNotice", error.Message); }
@@ -266,6 +269,7 @@ namespace ProductDiagnosis
             object state = await Task.Run(() => FeatureCall("monitoring", new { action = "snapshot" })); ApplyMonitorState(state, true);
             Require(Get<UIElement>("MonitorPage").Visibility == Visibility.Visible && Get<CheckBox>("MonitorEnabledBox").IsChecked == false, "监控页面或默认暂停状态错误。");
             Require(Get<ComboBox>("ShopBox").IsEditable && Get<ComboBox>("AutoShopBox").IsEditable, "授权店铺候选不可选择。");
+            SettingsSmokeCheck();
             ShowPage(initialPage); Window.UpdateLayout();
         }
     }

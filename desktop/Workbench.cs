@@ -37,7 +37,8 @@ namespace ProductDiagnosis
                 Get<Button>("AutoUseCurrentButton").RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
                 string period = Get<ComboBox>("CollectPeriodBox").SelectedValue as string;
                 if (period != null) Get<ComboBox>("AutoPeriodBox").SelectedValue = period;
-                Get<TextBox>("AutoNameBox").Text = Get<TextBox>("ValueBox").Text;
+                string product = Get<TextBox>("ValueBox").Text.Trim();
+                Get<TextBox>("AutoNameBox").Text = product.Length > 0 ? product : "全店商品";
                 RevealAutomationEditor();
             });
             Click("BrowserCollectButton", () => { Get<ComboBox>("SourceBox").SelectedIndex = 0; ShowPage("collect"); });
@@ -96,7 +97,8 @@ namespace ProductDiagnosis
         {
             string country = Get<ComboBox>("CountryBox").Text;
             string shop = Get<ComboBox>("ShopBox").Text.Trim();
-            SetText("QueryPreviewText", "商品  " + (Get<TextBox>("ValueBox").Text.Length > 0 ? Get<TextBox>("ValueBox").Text : "—") +
+            string product = Get<TextBox>("ValueBox").Text.Trim();
+            SetText("QueryPreviewText", "商品  " + (product.Length > 0 ? product : shop.Length > 0 ? "全部商品" : "全部商品（请选店铺）") +
                 "\n国家  " + (country.Length > 0 ? country : "全部国家") + "\n店铺  " + (shop.Length > 0 ? shop : "全部店铺") +
                 "\n日期  " + DateString("FromPicker") + "\n       — " + DateString("ToPicker") +
                 "\n通道  " + (SourceValue("SourceBox") == "mcp" ? "MCP" : "浏览器") + "\n输出  JSON");
@@ -133,7 +135,7 @@ namespace ProductDiagnosis
             object task = row.Raw, run = ReportData.Value(task, "latest");
             string state = ReportData.TextAt(run, "status");
             SetText("AutoDetailName", row.Name);
-            SetText("AutoDetailScope", ReportData.TextAt(task, "type") + " · " + ReportData.TextAt(task, "value") + "\n" + row.CompactScope);
+            SetText("AutoDetailScope", ReportData.TextAt(task, "type") + " · " + ReportData.ProductFilterLabel(ReportData.TextAt(task, "value")) + "\n" + row.CompactScope);
             SetText("AutoDetailState", row.Enabled == "停用" ? "任务已停用 · 最近" + row.Last : row.Last);
             Get<TextBlock>("AutoDetailState").Foreground = Color(state == "error" ? "#ED9292" : state == "ok" ? "#70C9A4" : "#63D8E6");
             DateTimeOffset start, finish;

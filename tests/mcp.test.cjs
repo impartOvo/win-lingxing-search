@@ -115,6 +115,17 @@ test('name capture resolves and deduplicates Listing parents, preserves zero/nul
   assert.throws(() => reports.summaryPath(path.dirname(file), '../mcp-data-outside.json'));
 });
 
+test('blank product fetches all products for one shop without a Listing lookup', async t => {
+  const root = temporary(t), client = mockClient([{ msku: 'SAMPLE-MSKU', currency_code: 'EUR' }]);
+  const file = await capture({ type: 'fnsku', value: ' ', country: '德国', shop: choices.sellers[0].seller_simple_name }, { root, config: {}, client });
+  const query = client.calls.find(c => c.id === 'query_product_performance_asin_lists').params;
+  assert.deepEqual(query.search_value, []);
+  assert.equal(query.sids, '10');
+  assert.equal(query.summary_field, 'msku');
+  assert.ok(!client.calls.some(c => c.id === 'erp_listing'));
+  assert.equal(reports.readBundle(path.dirname(file), path.basename(file)).summary.input.value, '');
+});
+
 test('empty data and incomplete or repeated pagination never become a successful capture', async t => {
   const root = temporary(t);
   await assert.rejects(capture({ type: 'asin', value: 'B0ASIN0001', country: '德国', from: '2026-11-01', to: '2026-11-01' }, { root, config: {}, client: mockClient([]) }), /没有匹配记录/);

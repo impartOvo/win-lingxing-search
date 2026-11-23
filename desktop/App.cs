@@ -170,6 +170,7 @@ namespace ProductDiagnosis
             InitializeMcp();
             InitializeWorkbench();
             InitializeFeatures();
+            InitializeSettings();
         }
 
         internal static string[] CountryOptions()
@@ -200,6 +201,7 @@ namespace ProductDiagnosis
             WireAutomationEvents();
             WireWorkbenchEvents();
             WireFeatureEvents();
+            WireSettingsEvents();
             Get<ComboBox>("ResultRowBox").SelectionChanged += delegate { UpdateSelectedReport(); };
             Click("GoCollectButton", () => ShowPage("collect"));
             Click("ShowRunLogButton", () => ShowPage("logs"));
@@ -218,6 +220,8 @@ namespace ProductDiagnosis
             Click("MaximizeButton", () => Window.WindowState = Window.WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized);
             Click("CloseButton", () => Window.Close());
             Window.Closing += delegate(object sender, System.ComponentModel.CancelEventArgs closing) {
+                if (SessionIsEnding) return;
+                if (!options.IsTest && options.Preview == null && TryHideToTray(closing)) return;
                 if (collector != null && !collector.HasExited) { closing.Cancel = true; Notice("采集正在进行，请等待结束后再关闭窗口。"); ShowPage("collect"); }
             };
         }
@@ -268,7 +272,7 @@ namespace ProductDiagnosis
 
         private void ShowPage(string page)
         {
-            foreach (string name in new[] { "CollectPage", "ResultsPage", "HistoryPage", "LogsPage", "AutomationPage", "McpPage", "MonitorPage" }) Get<UIElement>(name).Visibility = Visibility.Collapsed;
+            foreach (string name in new[] { "CollectPage", "ResultsPage", "HistoryPage", "LogsPage", "AutomationPage", "McpPage", "MonitorPage", "SettingsPage" }) Get<UIElement>(name).Visibility = Visibility.Collapsed;
             string panel, nav, heading, subtitle;
             switch (page)
             {
@@ -277,6 +281,7 @@ namespace ProductDiagnosis
                 case "logs": panel = "LogsPage"; nav = "NavLogs"; heading = "运行日志"; subtitle = "查看本次采集进度与错误信息"; break;
                 case "automation": panel = "AutomationPage"; nav = "NavAutomation"; heading = "采集任务"; subtitle = "让重复查询，按计划完成。"; break;
                 case "mcp": panel = "McpPage"; nav = "NavMcp"; heading = "连接设置"; subtitle = "同一个数据源，两种采集方式。"; break;
+                case "settings": panel = "SettingsPage"; nav = "NavSettings"; heading = "设置"; subtitle = "管理窗口关闭方式和本机后台运行。"; break;
                 case "monitor": panel = "MonitorPage"; nav = "NavMonitor"; heading = "监控与提醒"; subtitle = "关注 FBA 可售库存与售后站内信，按设置的周期静默检查。"; break;
                 default: panel = "CollectPage"; nav = "NavCollect"; heading = "新建采集"; subtitle = "选定数据范围，立即获取或保存为定时任务。"; break;
             }
@@ -405,6 +410,7 @@ namespace ProductDiagnosis
 
         internal static ProcessStartInfo NodeStartInfo(string directory, IEnumerable<string> arguments)
         {
+            if (WindowsSessionIsEnding) throw new OperationCanceledException("Windows 正在结束会话。");
             return new ProcessStartInfo {
                 FileName = Path.Combine(directory, "runtime", "node.exe"),
                 Arguments = string.Join(" ", arguments.Select(QuoteArgument)), WorkingDirectory = directory,
@@ -415,22 +421,24 @@ namespace ProductDiagnosis
 
         private void StartCollection()
         {
-            if (collector != null) return;
+            if (collector != null || SessionIsEnding) return;
             Notice("");
             string value = Get<TextBox>("ValueBox").Text.Trim();
-            if (value.Length == 0 || value.Length > 160 || value.IndexOfAny(new[] { '"', '\r', '\n' }) >= 0) { Notice("请输入有效的商品标识或品名（最多 160 字符）。"); Get<TextBox>("ValueBox").Focus(); return; }
+            if (value.Length > 160 || value.IndexOfAny(new[] { '"', '\r', '\n' }) >= 0) { Notice("商品标识或品名格式无效（最多 160 字符）。"); Get<TextBox>("ValueBox").Focus(); return; }
             DateTime from, to;
             if (!DateTime.TryParse(Get<DatePicker>("FromPicker").Text, out from) || !DateTime.TryParse(Get<DatePicker>("ToPicker").Text, out to)) { Notice("请输入有效的开始和结束日期。"); return; }
             if (from.Date > to.Date) { Notice("开始日期不能晚于结束日期。"); return; }
             string country = Get<ComboBox>("CountryBox").Text.Trim();
             if (country == "全部国家") country = "";
             string shop = Get<ComboBox>("ShopBox").Text.Trim();
+            if (value.Length == 0 && shop.Length == 0) { Notice("商品标识或品名留空时，请指定一个店铺。"); Get<ComboBox>("ShopBox").Focus(); return; }
             if (country.Length > 120 || shop.Length > 120 || (country + shop).IndexOfAny(new[] { '"', '\r', '\n' }) >= 0) { Notice("国家或店铺名称无效（最多 120 字符）。"); return; }
             string script = Path.Combine(root, "collector.cjs");
             if (!File.Exists(Path.Combine(root, "runtime", "node.exe")) || !File.Exists(script) || !Directory.Exists(Path.Combine(root, "node_modules", "playwright"))) { Notice("采集文件不完整，请保留完整的 PulsarFetch 应用文件夹。"); return; }
             string kind = typeValues[Math.Max(0, Get<ComboBox>("TypeBox").SelectedIndex)];
             string match = Get<ComboBox>("MatchBox").SelectedIndex == 1 ? "exact" : "fuzzy";
-            var arguments = new List<string> { script, "--type", kind, "--value", value, "--match", match, "--from", from.ToString("yyyy-MM-dd"), "--to", to.ToString("yyyy-MM-dd") };
+            var arguments = new List<string> { script, "--type", kind, "--match", match, "--from", from.ToString("yyyy-MM-dd"), "--to", to.ToString("yyyy-MM-dd") };
+            if (value.Length > 0) arguments.AddRange(new[] { "--value", value });
             arguments.AddRange(new[] { "--source", SourceValue("SourceBox") });
             string selectedCurrency = CurrencyValue("CurrencyBox"); if (selectedCurrency.Length > 0) arguments.AddRange(new[] { "--currency", selectedCurrency });
             if (country.Length > 0) arguments.AddRange(new[] { "--country", country });
@@ -542,9 +550,14 @@ namespace ProductDiagnosis
             Require(Get<UIElement>("CollectPage").Visibility == Visibility.Visible, "采集页面切换失败。");
             if (current != null) Require(Get<TextBox>("ValueBox").Text == ReportData.TextAt(current.Summary, "input", "value"), "查询条件回填失败。");
             string original = Get<TextBox>("ValueBox").Text;
+            string originalShop = Get<ComboBox>("ShopBox").Text;
             Get<TextBox>("ValueBox").Text = "";
+            Get<ComboBox>("ShopBox").Text = "";
             Get<Button>("RunButton").RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
-            Require(collector == null && Get<TextBlock>("FormNotice").Visibility == Visibility.Visible, "空输入校验失败。");
+            Require(collector == null && Get<TextBlock>("FormNotice").Text.Contains("指定一个店铺"), "全店采集范围校验失败。");
+            Get<ComboBox>("ShopBox").Text = "示例店铺";
+            Require(Get<TextBlock>("QueryPreviewText").Text.Contains("全部商品"), "全店采集预览未显示全部商品。");
+            Get<ComboBox>("ShopBox").Text = originalShop;
             Get<TextBox>("ValueBox").Text = original; Notice(""); Window.UpdateLayout();
             Get<ComboBox>("CollectPeriodBox").SelectedValue = "prev7";
             Require(DateString("FromPicker") == DateTime.Today.AddDays(-7).ToString("yyyy-MM-dd") && DateString("ToPicker") == DateTime.Today.AddDays(-1).ToString("yyyy-MM-dd"), "前七天的日期口径错误。");
@@ -588,6 +601,6 @@ namespace ProductDiagnosis
             using (Stream file = File.Create(path)) encoder.Save(file);
         }
 
-        public void Dispose() { runTimer.Stop(); if (automationTimer != null) automationTimer.Stop(); if (featureTimer != null) featureTimer.Stop(); CloseWriters(); if (collector != null) collector.Dispose(); }
+        public void Dispose() { DisposeTray(); runTimer.Stop(); if (automationTimer != null) automationTimer.Stop(); if (featureTimer != null) featureTimer.Stop(); CloseWriters(); if (collector != null) collector.Dispose(); }
     }
 }

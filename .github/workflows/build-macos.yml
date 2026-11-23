@@ -48,7 +48,7 @@ jobs:
         run: |
           APP="dist-mac/${{ matrix.appdir }}/PulsarFetch.app"
           REPORT="$RUNNER_TEMP/invalid-collection.json"
-          if "$APP/Contents/MacOS/PulsarFetch" --collect-once --value "" --test-report "$REPORT"; then
+          if "$APP/Contents/MacOS/PulsarFetch" --collect-once --type unsupported --test-report "$REPORT"; then
             echo "Invalid query unexpectedly succeeded"
             exit 1
           fi

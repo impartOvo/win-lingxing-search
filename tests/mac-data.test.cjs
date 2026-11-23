@@ -18,7 +18,10 @@ test('preserves Unicode and validates collection dates before spawning', () => {
   assert.equal(args[args.indexOf('--shop') + 1], '示例 店铺');
   assert.equal(args[args.indexOf('--type') + 1], '父ASIN');
   assert.throws(() => collectionArgs({ value: 'demo', from: '2025-02-31', to: '2025-03-01' }), /日期/);
-  assert.throws(() => collectionArgs({ value: '' }), /商品标识/);
+  assert.throws(() => collectionArgs({ value: '' }), /指定一个店铺/);
+  const all = collectionArgs({ value: '  ', shop: '示例店铺', country: '德国' });
+  assert.ok(!all.includes('--value'));
+  assert.equal(all[all.indexOf('--shop') + 1], '示例店铺');
 });
 test('uses a writable data directory independently of bundled application files', () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'lingxing-data-'));

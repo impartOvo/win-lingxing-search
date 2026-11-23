@@ -27,7 +27,7 @@ function args(argv) {
     if (key === '--help') { out.help = true; continue; }
     if (['--save-template', '--diagnostics'].includes(key) && (!argv[i + 1] || argv[i + 1].startsWith('--'))) { out[key.slice(2)] = true; continue; }
     const value = argv[++i];
-    if (!value || value.startsWith('--')) throw new Error(`参数 ${key} 缺少值`);
+    if (value === undefined || (value === '' && key !== '--value') || value.startsWith('--')) throw new Error(`参数 ${key} 缺少值`);
     out[key.slice(2)] = value;
   }
   return out;
@@ -43,8 +43,8 @@ function validate(options) {
     else if ([false, 'false', '0'].includes(options[key])) options[key] = false;
     else throw new Error(`--${key} 仅支持 true/false`);
   }
-  if (!options.value?.trim()) throw new Error('请提供 --value 商品标识或品名');
-  options.value = options.value.trim();
+  if (options.value !== undefined && typeof options.value !== 'string') throw new Error('商品标识或品名必须为文本');
+  options.value = (options.value || '').trim();
   options.type ||= 'MSKU';
   options.type = TYPE_ALIAS[options.type.toLowerCase()] || options.type;
   if (!TYPES.has(options.type)) throw new Error(`--type 仅支持 ${[...TYPES].join('/')}`);
@@ -53,6 +53,7 @@ function validate(options) {
   if (!MATCHES.has(options.match)) throw new Error('--match 仅支持 fuzzy/exact（模糊/精确）');
   if (options.country) options.country = COUNTRY_ALIAS[options.country.trim().toUpperCase()] || options.country.trim();
   if (options.shop) options.shop = options.shop.trim();
+  if (!options.value && !options.shop) throw new Error('商品标识或品名留空时，请指定一个店铺。');
   for (const key of ['country', 'shop']) if (options[key] && options[key].length > 120) throw new Error(`--${key} 过长`);
   if (options.from || options.to) {
     if (!options.from || !options.to) throw new Error('自定义日期必须同时提供 --from 和 --to');

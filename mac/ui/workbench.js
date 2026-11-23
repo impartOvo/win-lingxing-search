@@ -8,7 +8,7 @@ function details(list, values) {
   }
 }
 function queryPreview() {
-  details($('query-preview'), [['商品', $('value').value], ['国家', $('country').value || '全部国家'], ['店铺', $('shop').value || '全部店铺'], ['日期', `${$('from').value} — ${$('to').value}`], ['通道', $('source').value === 'mcp' ? 'MCP' : '浏览器'], ['输出', 'JSON']]);
+  details($('query-preview'), [['商品', $('value').value.trim() || ($('shop').value.trim() ? '全部商品' : '全部商品（请选店铺）')], ['国家', $('country').value || '全部国家'], ['店铺', $('shop').value || '全部店铺'], ['日期', `${$('from').value} — ${$('to').value}`], ['通道', $('source').value === 'mcp' ? 'MCP' : '浏览器'], ['输出', 'JSON']]);
   $('currency').disabled = $('source').value !== 'mcp' || $('run').disabled;
 }
 function collectPeriod() {
@@ -28,7 +28,7 @@ function resultTab(tab) {
 }
 function resultInformation(value) {
   const summary = value.summary, input = summary.input;
-  set('result-info', `查询条件  ${input.type} / ${input.value}\n\n国家 / 店铺  ${input.country || '全部国家'} / ${input.shop || '全部店铺'}\n\n数据日期  ${(summary.dates || []).join(' — ')}\n\n采集时间  ${new Date(summary.fetchedAt).toLocaleString('zh-CN')}\n\n采集通道  ${summary.method === 'mcp' ? 'MCP' : '浏览器'}\n\n统计币种  ${input.currency || value.rows[0]?.currency_code || '见记录字段'}\n\n商品记录  ${value.rows.length}\n\n结果文件  ${value.name}\n\n数据文件  ${value.dataName}`);
+  set('result-info', `查询条件  ${input.type} / ${input.value || '全部商品'}\n\n国家 / 店铺  ${input.country || '全部国家'} / ${input.shop || '全部店铺'}\n\n数据日期  ${(summary.dates || []).join(' — ')}\n\n采集时间  ${new Date(summary.fetchedAt).toLocaleString('zh-CN')}\n\n采集通道  ${summary.method === 'mcp' ? 'MCP' : '浏览器'}\n\n统计币种  ${input.currency || value.rows[0]?.currency_code || '见记录字段'}\n\n商品记录  ${value.rows.length}\n\n结果文件  ${value.name}\n\n数据文件  ${value.dataName}`);
   set('result-json', JSON.stringify(value.payload, null, 2)); resultTab('records');
 }
 function taskSelected() { return automationState?.tasks.find(task => task.id === selectedTaskId); }
@@ -37,7 +37,7 @@ function taskInspector() {
   for (const id of ['a-detail-edit', 'a-detail-run-now', 'a-detail-delete']) $(id).disabled = !task;
   $('a-detail-result').disabled = run?.status !== 'ok'; $('a-detail-log').disabled = !run;
   set('a-detail-name', task?.name || '暂无所选任务');
-  set('a-detail-scope', task ? `${task.type} · ${task.value}\n${task.country || '全部国家'} · ${task.shop || '全部店铺'}` : '');
+  set('a-detail-scope', task ? `${task.type} · ${task.value || '全部商品'}\n${task.country || '全部国家'} · ${task.shop || '全部店铺'}` : '');
   const status = run?.status || '';
   set('a-detail-state', task ? `${task.enabled ? '' : '任务已停用 · 最近'}${automationLabel(status)}` : '选择任务查看详情');
   $('a-detail-state').className = `state ${status}`;
@@ -85,7 +85,7 @@ $('a-detail-result').onclick = guarded(async () => { if (taskSelected()?.latest?
 $('a-detail-log').onclick = guarded(() => showAutomationLog(taskSelected().latest.id));
 $('a-detail-run-now').onclick = guarded(() => automationRequest({ action: 'run', ids: [selectedTaskId] }));
 $('a-detail-delete').onclick = guarded(async () => { await automationRequest({ action: 'delete-task', id: selectedTaskId }); $('a-editor').hidden = true; });
-$('collect-schedule').onclick = guarded(async () => { show('automation'); await automationRequest(); editTask(); $('a-use-current').click(); $('a-period').value = $('collect-period').value; $('a-fixed').hidden = $('a-period').value !== 'custom'; $('a-name').value = $('value').value; });
+$('collect-schedule').onclick = guarded(async () => { show('automation'); await automationRequest(); editTask(); $('a-use-current').click(); $('a-period').value = $('collect-period').value; $('a-fixed').hidden = $('a-period').value !== 'custom'; $('a-name').value = $('value').value.trim() || '全店商品'; });
 $('browser-collect').onclick = () => { $('source').value = 'browser'; queryPreview(); show('collect'); };
 set('a-timezone', `本机时区 · ${Intl.DateTimeFormat().resolvedOptions().timeZone}`);
 queryPreview();

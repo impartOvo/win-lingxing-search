@@ -36,8 +36,7 @@ namespace ProductDiagnosis
             Get<ComboBox>("AutoPeriodBox").ItemsSource = automationPeriods;
             NewAutomationTask();
             automationTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
-            automationTimer.Tick += delegate { if (Get<UIElement>("AutomationPage").Visibility == Visibility.Visible) RefreshAutomation(); };
-            automationTimer.Start();
+            automationTimer.Tick += delegate { if (CanRefreshVisibleWindow && Get<UIElement>("AutomationPage").IsVisible) RefreshAutomation(); };
         }
         private void WireAutomationEvents()
         {
@@ -136,6 +135,7 @@ namespace ProductDiagnosis
             var info = NodeStartInfo(root, new[] { Path.Combine(root, "automation", "cli.cjs"), "--data", automationDataRoot });
             info.RedirectStandardInput = true;
             using (var process = new Process { StartInfo = info }) {
+                EnsureSessionActive();
                 process.Start(); var output = process.StandardOutput.ReadToEndAsync(); var error = process.StandardError.ReadToEndAsync();
                 using (var input = new StreamWriter(process.StandardInput.BaseStream, new UTF8Encoding(false)))
                     input.Write(ReportData.Serializer().Serialize(request));

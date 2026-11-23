@@ -6,6 +6,35 @@ const { randomUUID } = require('node:crypto');
 const { chromium } = require('playwright');
 const { PRIVATE, RESULTS, PAGE_URL, DATA_HOSTS, args, validate, mkdirs, saveJson, replayHeaders, captureSummary, businessHash, summary } = require('./shared');
 
+function reportRequest(request) {
+  const url = new URL(request.url());
+  if (url.protocol !== 'https:' || !DATA_HOSTS.has(url.hostname) ||
+      url.pathname !== '/bd/productPerformance/asinLists' || request.method() !== 'POST') return null;
+  return JSON.parse(request.postData() || '{}');
+}
+function matchesProduct(body, value) {
+  const search = body.search_value;
+  return value ? search === value || Array.isArray(search) && search.includes(value)
+    : search === '' || Array.isArray(search) && search.length === 0;
+}
+function filterIds(value) {
+  return (Array.isArray(value) ? value : String(value ?? '').split(',')).map(id => String(id).trim()).filter(Boolean);
+}
+function matchesReport(response, value, offset, length, scope) {
+  try {
+    const body = reportRequest(response.request());
+    return !!body && matchesProduct(body, value) && Number(body.offset) === offset &&
+      (length === undefined || Number(body.length) === length) &&
+      Object.entries(scope).every(([key, expected]) => {
+        if (['sids', 'mids'].includes(key)) {
+          const ids = filterIds(body[key]);
+          return typeof expected === 'number' ? ids.length === expected : JSON.stringify(ids.sort()) === JSON.stringify(filterIds(expected).sort());
+        }
+        return body[key] === expected;
+      });
+  } catch { return false; }
+}
+
 async function choosePeriod(page, period) {
   await page.getByPlaceholder('开始日期').click();
   const popover = page.locator('.el-popover:visible').filter({ hasText: period }).first();
@@ -166,20 +195,18 @@ async function collectPages(page, firstResponse, queryValue) {
   const total = Number(payload.data.total);
   if (!Number.isInteger(total) || total < 0) throw new Error('商品响应没有有效的总条数');
   let items = [...payload.data.list];
-  let pageSize = Number(JSON.parse(firstResponse.request().postData() || '{}').length) || items.length;
+  const request = reportRequest(firstResponse.request());
+  const scope = Object.fromEntries(['mids','sids','start_date','end_date','summary_field','currency_code','search_field'].map(key => [key, request[key]]));
+  let pageSize = Number(request.length) || items.length;
   let pages = 1;
   const pager = page.locator('.el-pagination').first();
   if (total > items.length && pageSize < 500) {
     await pager.locator('.el-pagination__sizes .el-select').click();
-    const largeResponse = page.waitForResponse(response => {
-      try {
-        const body = JSON.parse(response.request().postData() || '{}');
-        return body.search_value === queryValue && Number(body.offset) === 0 && Number(body.length) === 500;
-      } catch { return false; }
-    }, { timeout: 20000 });
+    const largeResponse = page.waitForResponse(response => matchesReport(response, queryValue, 0, 500, scope), { timeout: 20000 });
     await page.locator('.el-select-dropdown:visible').getByText('500条/页', { exact: true }).click();
     payload = await (await largeResponse).json();
     if (!Array.isArray(payload.data?.list)) throw new Error('切换每页500条后没有列表数据');
+    if (Number(payload.data.total) !== total) throw new Error('商品总数在分页过程中变化，请重新采集。');
     items = [...payload.data.list];
     pageSize = 500;
   }
@@ -187,16 +214,12 @@ async function collectPages(page, firstResponse, queryValue) {
     const next = pager.locator('button.btn-next');
     if (await next.getAttribute('disabled') !== null) throw new Error(`分页尚未采完：已取 ${items.length}/${total} 条`);
     const offset = items.length;
-    const nextResponse = page.waitForResponse(response => {
-      try {
-        const body = JSON.parse(response.request().postData() || '{}');
-        return body.search_value === queryValue && Number(body.offset) === offset && Number(body.length) === pageSize;
-      } catch { return false; }
-    }, { timeout: 20000 });
+    const nextResponse = page.waitForResponse(response => matchesReport(response, queryValue, offset, pageSize, scope), { timeout: 20000 });
     await next.click();
     const nextPayload = await (await nextResponse).json();
     const list = nextPayload.data?.list;
     if (!Array.isArray(list) || !list.length) throw new Error(`第 ${pages + 1} 页没有返回商品数据`);
+    if (Number(nextPayload.data.total) !== total) throw new Error('商品总数在分页过程中变化，请重新采集。');
     items.push(...list);
     pages++;
   }
@@ -245,13 +268,10 @@ async function capture(options) {
       try {
         if (!recording) return;
         const request = response.request();
-        const url = request.url();
-        if (!DATA_HOSTS.has(new URL(url).hostname) || !/json/i.test(response.headers()['content-type'] || '')) return;
-        if (/login|logout|captcha|verify|token|password/i.test(new URL(url).pathname)) return;
+        const url = request.url(), filters = reportRequest(request);
+        if (!filters || !matchesProduct(filters, queryValue)) return;
         const body = await response.json();
         const postData = request.postData() || '';
-        const responseText = JSON.stringify(body);
-        if (!postData.includes(queryValue) && !url.includes(queryValue) && !responseText.includes(queryValue)) return;
         seen.push({
           request: { url, method: request.method(), ...(options['save-template'] ? { headers: replayHeaders(await request.allHeaders()) } : {}), postData },
           response: { status: response.status(), body },
@@ -271,8 +291,8 @@ async function capture(options) {
       const loginTimeout = Number(process.env.LINGXING_LOGIN_TIMEOUT_MS || 600000);
       await productTab.waitFor({ state: 'visible', timeout: loginTimeout });
     }
-    const resolved = options.type === 'FNSKU' ? await resolveFnsku(page, options.value, options) : null;
-    const queryType = resolved ? 'MSKU' : options.type;
+    const resolved = options.value && options.type === 'FNSKU' ? await resolveFnsku(page, options.value, options) : null;
+    const queryType = options.type === 'FNSKU' ? 'MSKU' : options.type;
     const tabType = queryType === '品名' ? '父ASIN' : queryType;
     queryValue = resolved ? resolved.msku : options.value;
     if (resolved) await page.goto(PAGE_URL, { waitUntil: 'domcontentloaded' });
@@ -288,43 +308,28 @@ async function capture(options) {
     const country = await chooseCountry(page, options.country);
     const shop = await chooseShop(page, options.shop);
     const dates = options.from ? await chooseDates(page, options.from, options.to) : await choosePeriod(page, options.period);
-    const search = await chooseSearchType(page, queryType);
-    const match = await chooseMatchMode(page, options.match);
+    const search = queryValue ? await chooseSearchType(page, queryType) : page.locator('.ak-advanced-input__new').first();
+    const match = queryValue ? await chooseMatchMode(page, options.match) : null;
     await search.locator('.search-input input').fill(queryValue);
-    const matchingResponse = page.waitForResponse(response => {
-      try {
-        const request = response.request();
-        const host = new URL(request.url()).hostname;
-        if (!DATA_HOSTS.has(host)) return false;
-        const body = JSON.parse(request.postData() || '{}');
-        return body.search_value === queryValue || (Array.isArray(body.search_value) && body.search_value.includes(queryValue));
-      } catch { return false; }
-    }, { timeout: 20000 });
-    recording = true;
+    const scope = { start_date: dates[0], end_date: dates[1] };
+    if (!queryValue) scope.sids = 1;
+    const matchingResponse = page.waitForResponse(response => matchesReport(response, queryValue, 0, undefined, scope), { timeout: 20000 });
+    recording = options.diagnostics;
     await search.locator('.lx_combo_search').click();
-    const collected = await collectPages(page, await matchingResponse, queryValue);
+    const firstResponse = await matchingResponse;
+    const collected = await collectPages(page, firstResponse, queryValue);
     await page.waitForTimeout(500);
 
     const rows = await page.locator('.vxe-table table, .ak-table-list table').evaluateAll(tables => tables.flatMap(table =>
       [...table.querySelectorAll('tbody tr')].map(tr => [...tr.querySelectorAll('td')].map(td => td.innerText.trim()))
     ).filter(row => row.some(Boolean)));
     const visibleText = await page.locator('body').innerText();
-    const relevant = seen.filter(x => x.request.postData.includes(queryValue) || x.request.url.includes(queryValue) || JSON.stringify(x.response.body).includes(queryValue));
-    if (options.diagnostics) saveJson(diagnosticsPath, relevant.map(captureSummary));
-    const candidates = relevant.filter(x => {
-      try { const body = JSON.parse(x.request.postData); return body.search_value === queryValue || (Array.isArray(body.search_value) && body.search_value.includes(queryValue)); }
-      catch { return false; }
-    });
-    const selected = candidates.filter(x => Array.isArray(x.response.body?.data?.list))
-      .sort((a,b) => JSON.stringify(b.response.body).length - JSON.stringify(a.response.body).length)[0];
-    const requestFilters = selected ? (() => {
-      const body = JSON.parse(selected.request.postData);
-      return { search_field: body.search_field, mids: body.mids, sids: body.sids, offset: body.offset, length: body.length };
-    })() : null;
-    if (selected && options.country && !requestFilters.mids) throw new Error('国家已选择，但商品请求未包含国家筛选');
-    if (selected && options.shop && !requestFilters.sids) throw new Error('店铺已选择，但商品请求未包含店铺筛选');
-    if (selected && !options.country && requestFilters.mids) throw new Error('未指定国家，但商品请求仍含有国家筛选');
-    if (selected && !options.shop && requestFilters.sids) throw new Error('未指定店铺，但商品请求仍含有店铺筛选');
+    if (options.diagnostics) saveJson(diagnosticsPath, seen.map(captureSummary));
+    const confirmedRequest = firstResponse.request();
+    const { search_field, mids, sids, offset, length } = reportRequest(confirmedRequest);
+    const requestFilters = { search_field, mids, sids, offset, length };
+    if (Boolean(options.country) !== Boolean(filterIds(mids).length)) throw new Error('商品请求的国家筛选与所选范围不一致。');
+    if (Boolean(options.shop) !== Boolean(filterIds(sids).length)) throw new Error('商品请求的店铺筛选与所选范围不一致。');
     const stamp = new Date().toISOString().replace(/[:.]/g, '-') + (isolated ? '-' + randomUUID() : '');
     const resultPath = path.join(RESULTS, `browser-${stamp}.json`);
     const result = {
@@ -334,24 +339,25 @@ async function capture(options) {
       pagination: { total: collected.total, collected: collected.body.data.list.length, pageSize: collected.pageSize, pages: collected.pages },
       fetchedAt: new Date().toISOString(), elapsedMs: Math.round(performance.now() - start), rows,
       pageResultCount: visibleText.match(/共\s*\d+\s*条/)?.[0] || null,
-      responseSummary: selected ? summary(collected.body) : null,
-      responseHash: selected ? businessHash(collected.body) : null,
-      capturedRequests: relevant.length,
-      status: selected ? 'ok' : 'unverified'
+      responseSummary: summary(collected.body),
+      responseHash: businessHash(collected.body),
+      capturedRequests: collected.pages,
+      status: 'ok'
     };
     console.log('阶段：保存结果');
-    saveJson(resultPath, result);
-    if (selected) {
-      if (options['save-template']) saveJson(templatePath, {
-        input: { ...options, type: queryType, value: queryValue }, dates, request: selected.request,
-        baseline: { summary: summary(selected.response.body), hash: businessHash(selected.response.body), browserElapsedMs: result.elapsedMs },
-        capturedAt: selected.capturedAt
+    if (options['save-template']) {
+      const firstBody = await firstResponse.json();
+      saveJson(templatePath, {
+        input: { ...options, type: queryType, value: queryValue }, dates,
+        request: { url: confirmedRequest.url(), method: confirmedRequest.method(), headers: replayHeaders(await confirmedRequest.allHeaders()), postData: confirmedRequest.postData() },
+        baseline: { summary: summary(firstBody), hash: businessHash(firstBody), browserElapsedMs: result.elapsedMs },
+        capturedAt: result.fetchedAt
       });
-      saveJson(path.join(RESULTS, `browser-data-${stamp}.json`), collected.body);
     }
-    console.log(JSON.stringify({ ...result, rows: `[${rows.length} rows]`, template: selected && options['save-template'] ? '已按需保存私有爬虫模板' : '未保存爬虫模板' }, null, 2));
+    saveJson(path.join(RESULTS, `browser-data-${stamp}.json`), collected.body);
+    saveJson(resultPath, result);
+    console.log(JSON.stringify({ ...result, rows: `[${rows.length} rows]`, template: options['save-template'] ? '已按需保存私有爬虫模板' : '未保存爬虫模板' }, null, 2));
     console.log(`结果：${resultPath}`);
-    if (!selected) throw new Error('未捕获到 search_value 等于商品标识的查询；直连版不会复用未经确认的请求');
     return resultPath;
   } finally { try { if (context) await context.close(); } finally { if (browser) await browser.close(); } }
 }
@@ -359,7 +365,7 @@ async function capture(options) {
 async function main(argv = process.argv.slice(2)) {
   const options = args(argv);
   if (options.help) {
-    console.log('用法：node browser.js --type asin|parent_asin|msku|sku|fnsku|spu|name --value 商品标识或品名 [--match fuzzy|exact] [--country 德国] [--shop 店铺名] [--period prev30 | --from YYYY-MM-DD --to YYYY-MM-DD] [--save-template] [--diagnostics]');
+    console.log('用法：node browser.js --type asin|parent_asin|msku|sku|fnsku|spu|name [--value 商品标识或品名] [--match fuzzy|exact] [--country 德国] [--shop 店铺名] [--period prev30 | --from YYYY-MM-DD --to YYYY-MM-DD] [--save-template] [--diagnostics]');
     return;
   }
   await capture(validate(options));

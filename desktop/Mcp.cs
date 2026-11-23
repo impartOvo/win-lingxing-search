@@ -37,6 +37,7 @@ namespace ProductDiagnosis
             var info = NodeStartInfo(root, new[] { Path.Combine(root, "mcp", "cli.cjs"), "--data", dataRoot });
             info.RedirectStandardInput = true;
             using (var process = new Process { StartInfo = info }) {
+                EnsureSessionActive();
                 process.Start();
                 var output = process.StandardOutput.ReadToEndAsync(); var error = process.StandardError.ReadToEndAsync();
                 using (var writer = new StreamWriter(process.StandardInput.BaseStream, new UTF8Encoding(false))) writer.Write(ReportData.Serializer().Serialize(request));

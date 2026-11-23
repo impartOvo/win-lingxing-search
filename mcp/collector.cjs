@@ -48,6 +48,10 @@ async function paginate(client, id, params, pageSize, listing = false) {
 async function productQuery(client, options, selectedScope) {
   const fields = { ASIN: 'asin', 父ASIN: 'parent_asin', MSKU: 'msku', SKU: 'local_sku', SPU: 'spu' };
   const dimensions = { ASIN: 'asin', 父ASIN: 'parent_asin', MSKU: 'msku', SKU: 'sku', SPU: 'spu' };
+  if (!options.value) {
+    const tab = options.type === '品名' ? '父ASIN' : options.type === 'FNSKU' ? 'MSKU' : options.type;
+    return { search_value: [], summary_field: dimensions[tab], tab, resolved: null };
+  }
   if (!['品名', 'FNSKU'].includes(options.type)) {
     return { search_field: fields[options.type], search_value: [options.value], summary_field: dimensions[options.type], tab: options.type, resolved: null };
   }
@@ -88,7 +92,8 @@ async function capture(input, overrides = {}) {
     const query = await productQuery(client, options, selectedScope), dates = dateRange(options);
     const collected = await paginate(client, 'query_product_performance_asin_lists', {
       start_date: dates.from, end_date: dates.to, date_type: 'purchase', date_range_type: 0,
-      ...selectedScope, summary_field: query.summary_field, search_field: query.search_field, search_value: query.search_value
+      ...selectedScope, summary_field: query.summary_field,
+      ...(query.search_field ? { search_field: query.search_field } : {}), search_value: query.search_value
     }, 500);
     if (!collected.total) throw new Error('MCP 产品表现没有匹配记录；请核对商品、日期和范围，未将空响应解释为零销量。');
     if (query.resolved && collected.rows.some(row => !query.search_value.includes(row[query.search_field]))) {

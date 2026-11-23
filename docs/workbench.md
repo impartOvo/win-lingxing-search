@@ -10,8 +10,6 @@ PulsarFetch 的核心是采集、展示和留档。Windows 保留 WPF，Mac 保�
 - **连接设置**：MCP 独立授权管理与浏览器登录说明。密钥保存后清空输入框，不回显。
 - **运行日志**：手动进度与选定定时运行的实际日志，错误原因在任务详情中直接显示。
 
-页面配色为石墨灰、中性边框和脉冲青。脉冲星图标为项目自绘矢量及原生绘图，打包到应用内。
-
 ## 设计参考
 
 任务与详情结构参考 [Trigger.dev](https://github.com/triggerdotdev/trigger.dev)，数据组织参考 [Supabase Studio](https://github.com/supabase/supabase)，运行记录参考 [Windmill](https://github.com/windmill-labs/windmill)，组件间距与层级参考 [shadcn/ui](https://github.com/shadcn-ui/ui)。本次复用的是交接中确定的设计方向，没有复制这些项目的运行代码或引入其依赖。
@@ -26,3 +24,10 @@ PulsarFetch 的核心是采集、展示和留档。Windows 保留 WPF，Mac 保�
 仓库地址继续使用 `impartOvo/win-lingxing-search`，下载包及应用显示为 PulsarFetch。旧浏览器／MCP 结果文件名、私有配置格式与加密标识保留兼容。
 
 本次本地验证覆盖 Windows 原生程序、公共采集与调度测试、Mac 界面的合成数据交互。Mac 原生构建、自检与解压检查由发布工作流在两个架构分别执行；真实账号与系统定时需在 Mac 实机验证。
+# 设置与托盘后台运行
+
+打开侧栏「设置」，切换「关闭窗口后在托盘后台运行」。默认关闭，切换后立即生效并自动保存。
+
+开启时，关闭窗口会隐藏到 Windows 系统托盘或 Mac 菜单栏，正在采集的任务继续运行。托盘提供「打开主界面」「设置」「退出软件」；Windows 也可双击图标恢复窗口。退出时若仍在采集，会恢复窗口并提示等待完成。
+
+关闭此选项后，关闭窗口会退出程序，正在采集时仍需等待完成。系统定时采集与库存／站内信监控使用各自的总开关，此设置只控制主程序的窗口行为。

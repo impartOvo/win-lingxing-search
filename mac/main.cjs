@@ -1,5 +1,5 @@
 'use strict';
-const { app, BrowserWindow, ipcMain, shell, utilityProcess, Menu, dialog, Notification } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, utilityProcess, Menu, dialog, Notification, Tray, nativeImage } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -9,6 +9,7 @@ const mcp = require('../mcp/cli.cjs');
 const workspace = require('../workspace.cjs');
 const monitoring = require('../monitoring/cli.cjs');
 const { safeError } = require('../mcp/settings.cjs');
+const preferences = require('./preferences.cjs');
 
 const monitorTick = process.argv.includes('--monitor-tick');
 const smoke = !monitorTick && process.argv.includes('--smoke-test');
@@ -19,6 +20,27 @@ app.setPath('userData', path.join(app.getPath('appData'), 'Lingxing Search'));
 app.setName('PulsarFetch');
 if (smokeRoot) app.setPath('userData', smokeRoot);
 let window, child, lastBundle, stage = '就绪', logs = [], smokeFinished = false;
+let appPreferences = { closeToTray: false }, tray, quitting = false;
+function restoreWindow(page) {
+  if (!window || window.isDestroyed()) createWindow();
+  else { if (window.isMinimized()) window.restore(); window.show(); window.focus(); }
+  if (app.dock) app.dock.show();
+  if (page) window.webContents.send('show-page', page);
+}
+function updateTray() {
+  if (!appPreferences.closeToTray) { if (tray) { tray.destroy(); tray = null; } return; }
+  if (tray) return;
+  const image = nativeImage.createFromPath(path.join(__dirname, 'ui', 'trayTemplate.png'));
+  if (image.isEmpty()) throw new Error('托盘图标缺失。');
+  image.setTemplateImage(true);
+  tray = new Tray(image); tray.setToolTip('PulsarFetch');
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: '打开主界面', click: () => restoreWindow() },
+    { label: '设置', click: () => restoreWindow('settings') },
+    { type: 'separator' }, { label: '退出软件', click: () => app.quit() }
+  ]));
+  tray.on('double-click', () => restoreWindow());
+}
 const dataRoot = () => app.getPath('userData');
 const resultRoot = () => path.join(dataRoot(), 'results');
 function send(channel, payload) { if (window && !window.isDestroyed()) window.webContents.send(channel, payload); }
@@ -129,6 +151,13 @@ function runCollector(input, helpOnly = false) {
 }
 
 function registerIPC() {
+  ipcMain.handle('preferences', (_, request) => {
+    if (request?.action === 'read') return appPreferences;
+    if (request?.action !== 'save' || typeof request.closeToTray !== 'boolean') throw new Error('设置操作无效。');
+    const previous = appPreferences;
+    try { appPreferences = { ...appPreferences, closeToTray: request.closeToTray }; updateTray(); appPreferences = preferences.save(dataRoot(), request); return appPreferences; }
+    catch (error) { appPreferences = previous; updateTray(); throw error; }
+  });
   ipcMain.handle('feature', (_, packet) => workspace.execute(packet, dataRoot()));
   ipcMain.handle('open-export', async (_, file) => { const error = await shell.openPath(confinedExport(file)); if (error) throw new Error(error); });
   ipcMain.handle('open-target', (_, target) => openTarget(target));
@@ -167,7 +196,11 @@ function createWindow() {
   });
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', event => event.preventDefault());
-  window.on('close', event => { if (child) { event.preventDefault(); status('采集正在进行，请等待完成后关闭'); } });
+  window.on('close', event => {
+    if (!smoke && !collectOnce && !quitting && appPreferences.closeToTray && tray) { event.preventDefault(); window.hide(); if (app.dock) app.dock.hide(); return; }
+    if (child) { event.preventDefault(); status('采集正在进行，请等待完成后关闭'); }
+  });
+  window.on('closed', () => { window = null; if (!smoke && !collectOnce && !quitting && !appPreferences.closeToTray) app.quit(); });
   window.once('ready-to-show', () => window.show());
   if (smoke) {
     window.webContents.on('preload-error', (_, file, error) => console.error('Preload:', error.message));
@@ -301,6 +334,7 @@ else if (!app.requestSingleInstanceLock()) app.quit();
 else {
   app.on('second-instance', () => { if (window && !window.isDestroyed()) { if (window.isMinimized()) window.restore(); window.show(); window.focus(); } else createWindow(); });
   app.whenReady().then(() => {
+    try { appPreferences = preferences.read(dataRoot()); updateTray(); } catch (error) { appPreferences = { closeToTray: false }; updateTray(); log('设置读取失败：' + error.message); }
     registerIPC();
     Menu.setApplicationMenu(Menu.buildFromTemplate([
       { label: 'PulsarFetch', submenu: [{ role: 'about', label: '关于 PulsarFetch' }, { type: 'separator' }, { role: 'quit', label: '退出 PulsarFetch' }] },
@@ -312,9 +346,13 @@ else {
       try { automation.execute({ action: 'sync-schedule' }, dataRoot()); }
       catch (error) { log('系统定时计划更新失败：' + error.message); }
     }
-    app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
+    app.on('activate', () => restoreWindow());
   }).catch(error => { if (smoke) finishSmoke(error); else if (collectOnce) finishCollectionTest(error); else dialog.showErrorBox('启动失败', error.message); });
-  app.on('before-quit', event => { if (child) { event.preventDefault(); status('采集正在进行，请等待完成后退出'); } });
+  app.on('before-quit', event => {
+    if (child) { event.preventDefault(); quitting = false; restoreWindow(); status('采集正在进行，请等待完成后退出'); }
+    else quitting = true;
+  });
+  app.on('will-quit', () => { if (tray) { tray.destroy(); tray = null; } });
   app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 }
 if (smoke) setTimeout(() => finishSmoke(new Error('macOS 应用自检超时')), 60000).unref();

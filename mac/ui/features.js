@@ -72,7 +72,7 @@ async function loadFeatureHistory() {
   const result = await feature('data', { action: 'history', filters });
   set('history-count', `${result.count} 次采集符合当前条件`); $('history-list').replaceChildren();
   for (const item of result.items) {
-    const row = automationCells($('history-list'), [automationTime(item.savedAt), `${item.type} · ${item.value}`, `${item.country || '全部国家'} · ${item.shop || '全部店铺'}`, `${item.from} — ${item.to}`, `${item.source === 'mcp' ? 'MCP' : '浏览器'} · ${item.currency || item.currencies?.join(' / ') || '见记录'}`, item.count, item.quality.warnings.join('；'), '']);
+    const row = automationCells($('history-list'), [automationTime(item.savedAt), `${item.type} · ${item.value || '全部商品'}`, `${item.country || '全部国家'} · ${item.shop || '全部店铺'}`, `${item.from} — ${item.to}`, `${item.source === 'mcp' ? 'MCP' : '浏览器'} · ${item.currency || item.currencies?.join(' / ') || '见记录'}`, item.count, item.quality.warnings.join('；'), '']);
     cellButton(row.cells[7], '查看', async () => renderResult(await api.readResult(item.name)));
     cellButton(row.cells[7], '导出', async () => {
       const exported = await feature('data', { action: 'export', name: item.name, format: $('h-format').value });
@@ -155,3 +155,29 @@ bind('r-delete',async()=>{ if(!ruleId) throw new Error('请先编辑要删除的
 document.querySelector('[data-page=monitor]').addEventListener('click',guarded(refreshMonitor));
 document.querySelector('[data-page=automation]').addEventListener('click',guarded(()=>api.feature ? dashboard() : undefined));
 setInterval(()=>{ if(!api.feature)return;if(!$('monitor').hidden)guarded(refreshMonitor)();if(!$('automation').hidden)guarded(dashboard)(); },15000);
+
+// App preferences control the GUI lifecycle; system schedules remain independent.
+titles.settings = ['设置', '管理窗口关闭方式和本机后台运行。'];
+if (api.onShowPage) api.onShowPage(page => { if (page === 'settings') document.querySelector('[data-page=settings]').click(); });
+const trayToggle = $('close-to-tray');
+let savedCloseToTray;
+document.querySelector('[data-page=settings]').addEventListener('click', guarded(async () => {
+  if (savedCloseToTray !== undefined) return;
+  const saved = await api.preferences({action:'read'});
+  if (savedCloseToTray !== undefined) return;
+  trayToggle.checked = savedCloseToTray = saved.closeToTray;
+  trayToggle.disabled = false;
+}));
+trayToggle.addEventListener('change', async () => {
+  trayToggle.disabled = true;
+  try {
+    const saved = await api.preferences({action:'save', closeToTray:trayToggle.checked});
+    savedCloseToTray = saved.closeToTray;
+    set('preferences-notice', '');
+  } catch (error) {
+    set('preferences-notice', '设置保存失败：' + error.message);
+  } finally {
+    trayToggle.checked = savedCloseToTray;
+    trayToggle.disabled = false;
+  }
+});
