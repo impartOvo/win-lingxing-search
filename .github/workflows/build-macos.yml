@@ -45,10 +45,11 @@ jobs:
           cat "$LINGXING_SMOKE_REPORT"
           exit "$RESULT"
       - name: Verify actual collection entry rejects invalid input with a report
+        timeout-minutes: 2
         run: |
           APP="dist-mac/${{ matrix.appdir }}/PulsarFetch.app"
           REPORT="$RUNNER_TEMP/invalid-collection.json"
-          if "$APP/Contents/MacOS/PulsarFetch" --collect-once --type unsupported --test-report "$REPORT"; then
+          if "$APP/Contents/MacOS/PulsarFetch" --collect-once --source unsupported --test-report "$REPORT"; then
             echo "Invalid query unexpectedly succeeded"
             exit 1
           fi
